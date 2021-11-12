@@ -6,18 +6,9 @@ use starframe::{
     math as m, physics as phys,
 };
 
-#[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
-#[serde(default)]
-pub struct PlayerSpawnPoint {
-    pub position: [f64; 2],
-}
-
-impl PlayerSpawnPoint {}
-
 pub struct PlayerController {
     base_move_speed: f64,
     max_acceleration: f64,
-    pub spawn_point: m::Vec2,
     entity: Option<PlayerNodes>,
 }
 struct PlayerNodes {
@@ -35,12 +26,11 @@ impl PlayerController {
         Self {
             base_move_speed: 4.0,
             max_acceleration: 8.0,
-            spawn_point: m::Vec2::new(0.0, 0.0),
             entity: None,
         }
     }
 
-    pub fn respawn(&mut self, graph: &mut sf::graph::Graph) {
+    pub fn respawn(&mut self, scene: &super::Scene, graph: &mut sf::graph::Graph) {
         if let Some(nodes) = &self.entity {
             graph.delete(nodes.body);
         }
@@ -58,7 +48,7 @@ impl PlayerController {
 
         let mut pose_node = l_pose.insert(
             m::PoseBuilder::new()
-                .with_position(self.spawn_point)
+                .with_position(scene.player_start)
                 .with_rotation(m::Angle::Deg(90.0))
                 .build(),
         );

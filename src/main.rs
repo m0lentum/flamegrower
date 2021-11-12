@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use starframe::{
     game::{self, Game},
     graph::{self, make_graph},
@@ -7,11 +8,24 @@ use starframe::{
     physics as phys,
 };
 
+use assets_manager::{AssetCache, Handle};
+
 mod player;
-mod recipes;
-use recipes::Recipe;
+mod scene;
+use scene::Scene;
+
+//
+
+lazy_static! {
+    static ref ASSETS: AssetCache = AssetCache::new("assets").expect("assets directory not found");
+}
+pub type AssetHandle<T> = Handle<'static, T>;
 
 fn main() {
+    #[cfg(debug_assertions)]
+    ASSETS.enhance_hot_reloading();
+
+    use winit::platform::unix::WindowBuilderExtUnix;
     let game = Game::init(
         60,
         winit::window::WindowBuilder::new()
@@ -19,14 +33,16 @@ fn main() {
             .with_inner_size(winit::dpi::LogicalSize {
                 width: 800.0,
                 height: 600.0,
-            }),
+            })
+            // X11 class I use for a window manager rule
+            .with_class("game".into(), "game".into()),
     );
     let state = State::init(&game.renderer);
     game.run(state);
 }
 
 //
-// Types
+// State types
 //
 
 enum StateEnum {
@@ -41,11 +57,15 @@ pub struct State {
     shape_renderer: gx::ShapeRenderer,
     // content
     state: StateEnum,
-    scene: Scene,
+    scene: AssetHandle<Scene>,
     player: player::PlayerController,
 }
 impl State {
     fn init(renderer: &gx::Renderer) -> Self {
+        let scene = ASSETS
+            .load::<Scene>("scenes.test")
+            .expect("test scene failed to load");
+
         State {
             graph: make_graph! {},
             physics: phys::Physics::new(
@@ -72,7 +92,7 @@ impl State {
             shape_renderer: gx::ShapeRenderer::new(renderer),
             //
             state: StateEnum::Playing,
-            scene: Scene::default(),
+            scene,
             player: player::PlayerController::new(),
         }
     }
@@ -82,71 +102,10 @@ impl State {
         self.graph.reset();
     }
 
-    fn read_scene(&mut self, file_idx: usize) {
-        let dir = std::fs::read_dir("./assets/scenes");
-        match dir {
-            Err(err) => eprintln!("Scenes dir not found: {}", err),
-            Ok(mut dir) => {
-                if let Some(Ok(entry)) = dir.nth(file_idx) {
-                    let file = std::fs::File::open(entry.path());
-                    match file {
-                        Ok(file) => {
-                            let scene = Scene::read_from_file(file);
-                            match scene {
-                                Err(err) => eprintln!("Failed to parse file: {}", err),
-                                Ok(scene) => self.scene = scene,
-                            }
-                        }
-                        Err(err) => eprintln!("Failed to open file: {}", err),
-                    }
-                }
-            }
-        }
-    }
-
     fn instantiate_scene(&mut self) {
-        self.scene.instantiate(&mut self.physics, &self.graph);
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum MouseMode {
-    /// Grab objects with the mouse
-    Grab,
-    /// Move the camera with the mouse
-    Camera,
-}
-
-/// The recipes in a scene plus some adjustable parameters.
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(default)]
-pub struct Scene {
-    recipes: Vec<Recipe>,
-}
-
-impl Default for Scene {
-    fn default() -> Self {
-        Self { recipes: vec![] }
-    }
-}
-
-impl Scene {
-    pub fn read_from_file(file: std::fs::File) -> Result<Self, ron::de::Error> {
-        use serde::Deserialize;
-        use std::io::Read;
-
-        let mut reader = std::io::BufReader::new(file);
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
-
-        let mut deser = ron::de::Deserializer::from_bytes(bytes.as_slice())?;
-        Scene::deserialize(&mut deser)
-    }
-
-    pub fn instantiate(&self, physics: &mut phys::Physics, graph: &graph::Graph) {
-        for recipe in &self.recipes {
-            recipe.spawn(physics, graph);
-        }
+        self.scene
+            .read()
+            .instantiate(&mut self.physics, &self.graph);
     }
 }
 
@@ -156,10 +115,13 @@ impl Scene {
 
 impl game::GameState for State {
     fn tick(&mut self, dt: f64, game: &Game) -> Option<()> {
-        // exit on esc
+        // exit on esc for now
         if game.input.is_key_pressed(Key::Escape, None) {
             return None;
         }
+
+        #[cfg(debug_assertions)]
+        ASSETS.hot_reload();
 
         // mouse camera
         self.camera
@@ -183,7 +145,7 @@ impl game::GameState for State {
 
                 // respawn player
                 if game.input.is_key_pressed(Key::R, Some(0)) {
-                    self.player.respawn(&mut self.graph);
+                    self.player.respawn(&*self.scene.read(), &mut self.graph);
                 }
 
                 {
