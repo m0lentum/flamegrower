@@ -7,12 +7,11 @@ use starframe::{
 };
 
 pub struct PlayerController {
-    base_move_speed: f64,
-    max_acceleration: f64,
     entity: Option<PlayerNodes>,
 }
 struct PlayerNodes {
     body: NodeKey<phys::Body>,
+    coll: NodeKey<phys::Collider>,
 }
 
 type Layers<'a> = (
@@ -21,13 +20,10 @@ type Layers<'a> = (
     LayerViewMut<'a, phys::Body>,
     LayerViewMut<'a, gx::Shape>,
 );
+
 impl PlayerController {
     pub fn new() -> Self {
-        Self {
-            base_move_speed: 4.0,
-            max_acceleration: 8.0,
-            entity: None,
-        }
+        Self { entity: None }
     }
 
     pub fn respawn(&mut self, scene: &super::Scene, graph: &mut sf::graph::Graph) {
@@ -37,31 +33,27 @@ impl PlayerController {
 
         let (mut l_pose, mut l_collider, mut l_body, mut l_shape): Layers =
             graph.get_layer_bundle();
+
+        let mut pose = l_pose.insert(m::Pose::new(scene.player_start, m::Angle::Deg(90.0).into()));
         const R: f64 = 0.1;
         const LENGTH: f64 = 0.2;
-
-        let coll = phys::Collider::new_capsule(LENGTH, R).with_material(phys::Material {
-            static_friction_coef: None,
-            dynamic_friction_coef: None,
-            restitution_coef: 0.0,
-        });
-
-        let mut pose_node = l_pose.insert(
-            m::PoseBuilder::new()
-                .with_position(scene.player_start)
-                .with_rotation(m::Angle::Deg(90.0))
-                .build(),
-        );
-        let mut shape_node = l_shape.insert(gx::Shape::from_collider(&coll, [0.2, 0.8, 0.6, 1.0]));
-        let mut coll_node = l_collider.insert(coll);
-        let mut body_node = l_body.insert(phys::Body::new_particle(1.0));
-        pose_node.connect(&mut body_node);
-        pose_node.connect(&mut coll_node);
-        body_node.connect(&mut coll_node);
-        pose_node.connect(&mut shape_node);
+        let mut coll = l_collider.insert(phys::Collider::new_capsule(LENGTH, R).with_material(
+            phys::Material {
+                static_friction_coef: None,
+                dynamic_friction_coef: None,
+                restitution_coef: 0.0,
+            },
+        ));
+        let mut shape = l_shape.insert(gx::Shape::from_collider(coll.c, [0.2, 0.8, 0.6, 1.0]));
+        let mut body = l_body.insert(phys::Body::new_particle(1.0));
+        pose.connect(&mut body);
+        pose.connect(&mut coll);
+        body.connect(&mut coll);
+        pose.connect(&mut shape);
 
         self.entity = Some(PlayerNodes {
-            body: body_node.key(),
+            body: body.key(),
+            coll: coll.key(),
         });
     }
 
@@ -78,27 +70,72 @@ impl PlayerController {
 
         let player_body = l_body.get_mut(nodes.body)?.c;
 
+        // figure out if we're on the ground
+
+        const GROUNDED_ANGLE_LIMIT: f64 = 60.0;
+        let normal_y_limit = m::Angle::Deg(GROUNDED_ANGLE_LIMIT).rad().cos();
+
+        let most_downright_contact = physics
+            .contacts_for_collider(nodes.coll)
+            .min_by(|c0, c1| c0.normal.y.partial_cmp(&c1.normal.y).unwrap());
+
+        #[derive(Debug, Clone, Copy)]
+        enum Groundedness {
+            EvenGround(m::Unit<m::Vec2>),
+            SteepSlope(m::Unit<m::Vec2>),
+            Air,
+        }
+        let groundedness = match most_downright_contact {
+            Some(cont) if cont.normal.y < -normal_y_limit => Groundedness::EvenGround(cont.normal),
+            Some(cont) if cont.normal.y < 0.0 => Groundedness::SteepSlope(cont.normal),
+            _ => Groundedness::Air,
+        };
+
+        //
+        // move
+        //
+
         let target_hdir = match input.get_key_axis_state(Key::Right, Key::Left) {
             KeyAxisState::Zero => 0.0,
             KeyAxisState::Pos => 1.0,
             KeyAxisState::Neg => -1.0,
         };
+        let ground_dir = if let Groundedness::EvenGround(normal) = groundedness {
+            m::left_normal(*normal)
+        } else {
+            m::Vec2::unit_x()
+        };
 
-        // move
+        const BASE_MOVE_SPEED: f64 = 6.0;
+        const GROUND_ACCEL: f64 = 3.0;
+        const AIR_ACCEL: f64 = 1.0;
 
-        let move_speed = self.base_move_speed;
+        let target_hvel = target_hdir * BASE_MOVE_SPEED;
+        let accel_needed = target_hvel - player_body.velocity.linear.dot(ground_dir);
+        let max_accel = match groundedness {
+            Groundedness::EvenGround(_) => GROUND_ACCEL,
+            Groundedness::SteepSlope(normal) if normal.x * target_hdir >= 0.0 => 0.0,
+            _ => AIR_ACCEL,
+        };
+        let accel = if accel_needed.abs() <= max_accel {
+            accel_needed
+        } else {
+            max_accel.copysign(accel_needed)
+        };
+        player_body.velocity.linear += accel * ground_dir;
 
-        let target_hvel = target_hdir * move_speed;
-        let accel_needed = target_hvel - player_body.velocity.linear.x;
-        let accel = accel_needed.min(self.max_acceleration);
-        player_body.velocity.linear.x += accel;
-
+        //
         // jump
+        //
 
+        const JUMP_VEL: f64 = 6.0;
         if input.is_key_pressed(Key::LShift, Some(0)) {
-            // TODO: only on ground, double jump, more snappy curve
-            // (reject gravity and substitute my own)
-            player_body.velocity.linear.y = 4.0;
+            if let Groundedness::EvenGround(normal) = groundedness {
+                player_body.velocity.linear -= JUMP_VEL * *normal;
+            }
+        } else if input.is_key_released(Key::LShift, Some(0)) && player_body.velocity.linear.y > 0.0
+        {
+            player_body.velocity.linear.y /= 2.0;
         }
 
         Some(())
