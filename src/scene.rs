@@ -1,7 +1,7 @@
 use starframe::{
     graph::{Graph, LayerViewMut},
     graphics::Shape,
-    math::{self as m},
+    math as m,
     physics::{Collider, Physics},
 };
 
@@ -41,7 +41,14 @@ impl Scene {
 
 #[derive(Clone, Debug, serde::Deserialize)]
 pub enum Recipe {
-    StaticCapsuleChain { width: f64, points: Vec<[f64; 2]> },
+    StaticCapsuleChain {
+        width: f64,
+        points: Vec<[f64; 2]>,
+    },
+    StaticCollider {
+        pose: m::PoseBuilder,
+        coll: Collider,
+    },
 }
 
 impl Recipe {
@@ -70,6 +77,13 @@ impl Recipe {
                     pose.connect(&mut coll);
                     pose.connect(&mut shape);
                 }
+            }
+            Recipe::StaticCollider { pose, coll } => {
+                let mut pose = l_pose.insert(pose.build());
+                let mut coll = l_coll.insert(*coll);
+                let mut shape = l_shape.insert(Shape::from_collider(coll.c, [1.0; 4]));
+                pose.connect(&mut coll);
+                pose.connect(&mut shape);
             }
         }
     }

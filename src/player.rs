@@ -10,6 +10,7 @@ pub struct PlayerController {
     entity: Option<PlayerNodes>,
 }
 struct PlayerNodes {
+    pose: NodeKey<m::Pose>,
     body: NodeKey<phys::Body>,
     coll: NodeKey<phys::Collider>,
 }
@@ -52,6 +53,7 @@ impl PlayerController {
         pose.connect(&mut shape);
 
         self.entity = Some(PlayerNodes {
+            pose: pose.key(),
             body: body.key(),
             coll: coll.key(),
         });
@@ -65,10 +67,11 @@ impl PlayerController {
     ) -> Option<()> {
         let nodes = self.entity.as_ref()?;
 
-        let (ref mut _l_pose, ref mut _l_collider, ref mut l_body, ref mut _l_shape): Layers =
+        let (ref mut l_pose, ref mut l_collider, ref mut l_body, ref mut _l_shape): Layers =
             graph.get_layer_bundle();
 
         let player_body = l_body.get_mut(nodes.body)?.c;
+        let player_pose = l_pose.get(nodes.pose)?.c;
 
         // figure out if we're on the ground
 
@@ -136,6 +139,42 @@ impl PlayerController {
         } else if input.is_key_released(Key::LShift, Some(0)) && player_body.velocity.linear.y > 0.0
         {
             player_body.velocity.linear.y /= 2.0;
+        }
+
+        //
+        // spawn ropes
+        //
+
+        if input.is_key_pressed(Key::Z, Some(0)) {
+            let target_ydir = match input.get_key_axis_state(Key::Up, Key::Down) {
+                KeyAxisState::Zero => 0.0,
+                KeyAxisState::Pos => 1.0,
+                KeyAxisState::Neg => -1.0,
+            };
+            let ray_dir = if target_ydir == 0.0 && target_hdir == 0.0 {
+                // TODO: current facing of the player here
+                m::Unit::unit_x()
+            } else {
+                m::Unit::new_normalize(m::Vec2::new(target_hdir, target_ydir))
+            };
+
+            const RAY_START_OFFSET: f64 = 0.2;
+            const RAY_MAX_DISTANCE: f64 = 5.0;
+            const ROPE_MIN_LENGTH: f64 = 1.0;
+
+            let ray = phys::Ray {
+                start: player_pose.translation + *ray_dir * RAY_START_OFFSET,
+                dir: ray_dir,
+            };
+            if let Some(hit) = physics.raycast(
+                ray,
+                RAY_MAX_DISTANCE,
+                &(l_pose.as_view(), l_collider.as_view()),
+            ) {
+                if hit.distance >= ROPE_MIN_LENGTH {
+                    println!("Ray hit {:?} at t {:?}", hit.point, hit.distance);
+                }
+            }
         }
 
         Some(())

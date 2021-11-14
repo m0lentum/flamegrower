@@ -9,6 +9,14 @@
         (-2, -7), (-8, -5), (-8, -2), (-5, -1), (-5, 0),
         (-8, 0), (-8, 5), (-1, 5),
       ],
-    )
+    ),
+    StaticCollider (
+      pose: ( position: (-3, -2) ),
+      coll: ( shape: Circle ( r: 0.5 ) ),
+    ),
+    StaticCollider (
+      pose: ( position: (3, -2) ),
+      coll: ( shape: Rect ( hw: 1, hh: 0.2 ) ),
+    ),
   ],
 )
