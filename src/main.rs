@@ -154,7 +154,7 @@ impl game::GameState for State {
                 }
                 {
                     self.player
-                        .tick(&game.input, &self.physics, &mut self.graph);
+                        .tick(&game.input, &mut self.physics, &mut self.graph);
                 }
 
                 Some(())

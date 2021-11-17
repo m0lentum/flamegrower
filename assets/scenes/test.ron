@@ -1,13 +1,13 @@
 (
-  player_start: (x: 6, y: 0.2),
+  player_start: (x: 6, y: 1.2),
   recipes: [
     StaticCapsuleChain (
       width: 0.05,
       points: [
-        (1, 5), (8, 5), (8, 0),
-        (5, 0), (5, -1), (8, -2), (8, -3), (7, -7),
-        (-2, -7), (-8, -5), (-8, -2), (-5, -1), (-5, 0),
-        (-8, 0), (-8, 5), (-1, 5),
+        (1, 5), (8, 5), (8, 1),
+        (5, 1), (5, 0), (8, -1), (8, -2), (7, -5),
+        (-2, -5), (-8, -3), (-8, -1), (-5, 0), (-5, 1),
+        (-8, 1), (-8, 5), (-1, 5),
       ],
     ),
     StaticCollider (
@@ -17,6 +17,10 @@
     StaticCollider (
       pose: ( position: (3, -2) ),
       coll: ( shape: Rect ( hw: 1, hh: 0.2 ) ),
+    ),
+    StaticCollider (
+      pose: ( position: (0, -0.25) ),
+      coll: ( shape: Capsule ( hl: 1, r: 0.5 ) ),
     ),
   ],
 )

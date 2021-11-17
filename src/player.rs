@@ -62,13 +62,13 @@ impl PlayerController {
     pub fn tick(
         &mut self,
         input: &sf::InputCache,
-        physics: &phys::Physics,
+        physics: &mut phys::Physics,
         graph: &mut sf::graph::Graph,
     ) -> Option<()> {
         let nodes = self.entity.as_ref()?;
 
-        let (ref mut l_pose, ref mut l_collider, ref mut l_body, ref mut _l_shape): Layers =
-            graph.get_layer_bundle();
+        let mut layers: Layers = graph.get_layer_bundle();
+        let (ref mut l_pose, ref mut l_collider, ref mut l_body, ref mut _l_shape) = layers;
 
         let player_body = l_body.get_mut(nodes.body)?.c;
         let player_pose = l_pose.get(nodes.pose)?.c;
@@ -158,8 +158,8 @@ impl PlayerController {
                 m::Unit::new_normalize(m::Vec2::new(target_hdir, target_ydir))
             };
 
-            const RAY_START_OFFSET: f64 = 0.2;
-            const RAY_MAX_DISTANCE: f64 = 5.0;
+            const RAY_START_OFFSET: f64 = 0.21;
+            const RAY_MAX_DISTANCE: f64 = 8.0;
             const ROPE_MIN_LENGTH: f64 = 1.0;
 
             let ray = phys::Ray {
@@ -169,10 +169,51 @@ impl PlayerController {
             if let Some(hit) = physics.raycast(
                 ray,
                 RAY_MAX_DISTANCE,
-                &(l_pose.as_view(), l_collider.as_view()),
+                (l_pose.as_view(), l_collider.as_view()),
             ) {
-                if hit.distance >= ROPE_MIN_LENGTH {
-                    println!("Ray hit {:?} at t {:?}", hit.point, hit.distance);
+                if hit.t >= ROPE_MIN_LENGTH {
+                    drop(layers);
+                    // start at the other end to control angle constraint propagation
+                    let rope_start = ray.point_at_t(hit.t - 0.05);
+                    let rope_end = ray.point_at_t(0.05);
+                    let rope = phys::spawn_rope_line(
+                        phys::Rope {
+                            ..Default::default()
+                        },
+                        rope_start,
+                        rope_end,
+                        graph.get_layer_bundle(),
+                    );
+
+                    // we had to drop and re-lock layers because current layerbundle impl requires move.
+                    // TODO: figure out something to prevent this on the starframe side
+                    let mut layers: Layers = graph.get_layer_bundle();
+                    let (ref mut l_pose, ref mut l_collider, ref mut l_body, ref mut _l_shape) =
+                        layers;
+                    let coll = l_collider.get_unchecked(hit.collider);
+                    let l_body_view = l_body.as_view();
+                    match coll.get_neighbor(&l_body_view) {
+                        Some(body) => {
+                            let offset = rope_start
+                                - body
+                                    .get_neighbor(&l_pose.as_view())
+                                    .map(|p| p.c.translation)
+                                    .unwrap_or_default();
+                            physics.add_constraint(
+                                phys::ConstraintBuilder::new(rope.first_particle)
+                                    .with_target(body.key())
+                                    .with_target_origin(offset)
+                                    .build_attachment(),
+                            );
+                        }
+                        None => {
+                            physics.add_constraint(
+                                phys::ConstraintBuilder::new(rope.first_particle)
+                                    .with_target_origin(rope_start)
+                                    .build_attachment(),
+                            );
+                        }
+                    }
                 }
             }
         }
