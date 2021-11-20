@@ -27,7 +27,7 @@ impl PlayerController {
         Self { entity: None }
     }
 
-    pub fn respawn(&mut self, scene: &super::Scene, graph: &mut sf::graph::Graph) {
+    pub fn respawn(&mut self, scene: &super::Scene, graph: &mut super::MyGraph) {
         if let Some(nodes) = &self.entity {
             graph.delete(nodes.body);
         }
@@ -63,7 +63,7 @@ impl PlayerController {
         &mut self,
         input: &sf::InputCache,
         physics: &mut phys::Physics,
-        graph: &mut sf::graph::Graph,
+        graph: &mut super::MyGraph,
     ) -> Option<()> {
         let nodes = self.entity.as_ref()?;
 
