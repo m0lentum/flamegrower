@@ -67,8 +67,8 @@ impl PlayerController {
     ) -> Option<()> {
         let nodes = self.entity.as_ref()?;
 
-        let mut layers: Layers = graph.get_layer_bundle();
-        let (ref mut l_pose, ref mut l_collider, ref mut l_body, ref mut _l_shape) = layers;
+        let (mut l_pose, mut l_collider, mut l_body, mut l_shape): Layers =
+            graph.get_layer_bundle();
 
         let player_body = l_body.get_mut(nodes.body)?.c;
         let player_pose = l_pose.get(nodes.pose)?.c;
@@ -169,10 +169,9 @@ impl PlayerController {
             if let Some(hit) = physics.raycast(
                 ray,
                 RAY_MAX_DISTANCE,
-                (l_pose.as_view(), l_collider.as_view()),
+                (l_pose.subview(), l_collider.subview()),
             ) {
                 if hit.t >= ROPE_MIN_LENGTH {
-                    drop(layers);
                     // start at the other end to control angle constraint propagation
                     let rope_start = ray.point_at_t(hit.t - 0.05);
                     let rope_end = ray.point_at_t(0.05);
@@ -182,21 +181,21 @@ impl PlayerController {
                         },
                         rope_start,
                         rope_end,
-                        graph.get_layer_bundle(),
+                        (
+                            l_body.subview_mut(),
+                            l_pose.subview_mut(),
+                            l_collider.subview_mut(),
+                            graph.get_layer_mut(),
+                            l_shape.subview_mut(),
+                        ),
                     );
 
-                    // we had to drop and re-lock layers because current layerbundle impl requires move.
-                    // TODO: figure out something to prevent this on the starframe side
-                    let mut layers: Layers = graph.get_layer_bundle();
-                    let (ref mut l_pose, ref mut l_collider, ref mut l_body, ref mut _l_shape) =
-                        layers;
                     let coll = l_collider.get_unchecked(hit.collider);
-                    let l_body_view = l_body.as_view();
-                    match coll.get_neighbor(&l_body_view) {
+                    match coll.get_neighbor(&l_body.subview()) {
                         Some(body) => {
                             let offset = rope_start
                                 - body
-                                    .get_neighbor(&l_pose.as_view())
+                                    .get_neighbor(&l_pose.subview())
                                     .map(|p| p.c.translation)
                                     .unwrap_or_default();
                             physics.add_constraint(
