@@ -31,8 +31,8 @@ fn main() {
         winit::window::WindowBuilder::new()
             .with_title("Floramancer")
             .with_inner_size(winit::dpi::LogicalSize {
-                width: 800.0,
-                height: 600.0,
+                width: 1280.0,
+                height: 720.0,
             })
             // X11 class I use for a window manager rule
             .with_class("game".into(), "game".into()),
@@ -57,6 +57,8 @@ pub struct State {
     physics: phys::Physics,
     camera: gx::camera::MouseDragCamera,
     shape_renderer: gx::ShapeRenderer,
+    debug_visualizer: gx::DebugVisualizer,
+    grid_vis_active: bool,
     // content
     state: StateEnum,
     scene: AssetHandle<Scene>,
@@ -76,12 +78,12 @@ impl State {
                 },
                 phys::collision::HGridParams {
                     approx_bounds: phys::collision::AABB {
-                        min: m::Vec2::new(-40.0, -15.0),
-                        max: m::Vec2::new(40.0, 25.0),
+                        min: m::Vec2::new(-10.0, -6.0),
+                        max: m::Vec2::new(10.0, 6.0),
                     },
-                    lowest_spacing: 0.5,
-                    level_count: 2,
-                    spacing_ratio: 3,
+                    lowest_spacing: 0.6,
+                    level_count: 3,
+                    spacing_ratio: 2,
                     initial_capacity: 600,
                 },
             ),
@@ -92,6 +94,8 @@ impl State {
                 },
             ),
             shape_renderer: gx::ShapeRenderer::new(renderer),
+            debug_visualizer: gx::DebugVisualizer::new(renderer),
+            grid_vis_active: false,
             //
             state: StateEnum::Playing,
             scene,
@@ -136,6 +140,11 @@ impl game::GameState for State {
         if game.input.is_key_pressed(Key::Return, Some(0)) {
             self.reset();
             self.instantiate_scene();
+        }
+
+        // toggle debug visualization
+        if game.input.is_key_pressed(Key::G, Some(0)) {
+            self.grid_vis_active = !self.grid_vis_active;
         }
 
         match self.state {
@@ -183,6 +192,11 @@ impl game::GameState for State {
 
         self.shape_renderer
             .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
+
+        if self.grid_vis_active {
+            self.debug_visualizer
+                .draw_spatial_index(&self.physics, &self.camera, &mut ctx);
+        }
 
         ctx.submit();
     }
