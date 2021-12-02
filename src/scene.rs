@@ -54,7 +54,7 @@ pub enum Recipe {
 impl Recipe {
     pub fn spawn(
         &self,
-        physics: &mut Physics,
+        _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
         (mut l_pose, mut l_coll, mut l_shape): (
             LayerViewMut<m::Pose>,
             LayerViewMut<Collider>,

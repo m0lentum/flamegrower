@@ -14,6 +14,18 @@ mod player;
 mod scene;
 use scene::Scene;
 
+mod collision_layers {
+    use starframe::physics::collision::{MaskMatrix, ROPE_LAYER};
+
+    pub const PLAYER: u64 = 1;
+
+    pub(super) fn create_layer_matrix() -> MaskMatrix {
+        let mut mat = MaskMatrix::default();
+        mat.ignore(PLAYER, ROPE_LAYER);
+        mat
+    }
+}
+
 //
 
 lazy_static! {
@@ -86,6 +98,7 @@ impl State {
                     spacing_ratio: 2,
                     initial_capacity: 600,
                 },
+                collision_layers::create_layer_matrix(),
             ),
             camera: gx::camera::MouseDragCamera::new(
                 gx::camera::ScalingStrategy::ConstantDisplayArea {
