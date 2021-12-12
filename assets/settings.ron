@@ -1,0 +1,21 @@
+(
+  keymap: (
+    menus: (
+      exit: Escape,
+      reload: Return,
+      pause: P,
+    ),
+    player: (
+      right: Right,
+      left: Left,
+      up: Up,
+      down: Down,
+      jump: LShift,
+      aim: Z,
+      respawn: R,
+    ),
+    debug: (
+      toggle_grid: G,
+    ),
+  ),
+)

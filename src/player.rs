@@ -84,6 +84,7 @@ impl PlayerController {
     pub fn tick(
         &mut self,
         input: &sf::InputCache,
+        keys: &crate::settings::PlayerKeys,
         physics: &mut phys::Physics,
         graph: &mut super::MyGraph,
     ) -> Option<()> {
@@ -119,12 +120,12 @@ impl PlayerController {
         // move
         //
 
-        let target_hdir = match input.get_key_axis_state(Key::Right, Key::Left) {
+        let target_hdir = match input.get_key_axis_state(keys.right, keys.left) {
             KeyAxisState::Zero => 0.0,
             KeyAxisState::Pos => 1.0,
             KeyAxisState::Neg => -1.0,
         };
-        let target_vdir = match input.get_key_axis_state(Key::Up, Key::Down) {
+        let target_vdir = match input.get_key_axis_state(keys.up, keys.down) {
             KeyAxisState::Zero => 0.0,
             KeyAxisState::Pos => 1.0,
             KeyAxisState::Neg => -1.0,
@@ -169,12 +170,11 @@ impl PlayerController {
         // jump
         //
 
-        if input.is_key_pressed(Key::LShift, Some(0)) {
+        if input.is_key_pressed(keys.jump, Some(0)) {
             if let Groundedness::EvenGround(normal) = groundedness {
                 player_body.velocity.linear -= JUMP_VEL * *normal;
             }
-        } else if input.is_key_released(Key::LShift, Some(0)) && player_body.velocity.linear.y > 0.0
-        {
+        } else if input.is_key_released(keys.jump, Some(0)) && player_body.velocity.linear.y > 0.0 {
             player_body.velocity.linear.y /= 2.0;
         }
 
@@ -182,7 +182,7 @@ impl PlayerController {
         // spawn and delete ropes
         //
 
-        match (input.is_key_pressed(Key::Z, Some(0)), self.attached_rope) {
+        match (input.is_key_pressed(keys.aim, Some(0)), self.attached_rope) {
             (true, Some(rope)) => {
                 // need to drop the layer views manually to be able to delete here
                 drop(l_pose);

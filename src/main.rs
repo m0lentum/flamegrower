@@ -3,7 +3,7 @@ use starframe::{
     game::{self, Game},
     graph::make_graph,
     graphics as gx,
-    input::{Key, MouseButton},
+    input::MouseButton,
     math::{self as m, uv},
     physics as phys,
 };
@@ -13,6 +13,8 @@ use assets_manager::{AssetCache, Handle};
 mod player;
 mod scene;
 use scene::Scene;
+mod settings;
+use settings::Settings;
 
 mod collision_layers {
     use starframe::physics::collision::{MaskMatrix, ROPE_LAYER};
@@ -72,6 +74,7 @@ pub struct State {
     debug_visualizer: gx::DebugVisualizer,
     grid_vis_active: bool,
     // content
+    settings: AssetHandle<Settings>,
     state: StateEnum,
     scene: AssetHandle<Scene>,
     player: player::PlayerController,
@@ -110,6 +113,7 @@ impl State {
             debug_visualizer: gx::DebugVisualizer::new(renderer),
             grid_vis_active: false,
             //
+            settings: ASSETS.load("settings").expect("settings failed to load"),
             state: StateEnum::Playing,
             scene,
             player: player::PlayerController::new(),
@@ -134,8 +138,11 @@ impl State {
 
 impl game::GameState for State {
     fn tick(&mut self, dt: f64, game: &Game) -> Option<()> {
-        // exit on esc for now
-        if game.input.is_key_pressed(Key::Escape, None) {
+        let settings = self.settings.read();
+        let keys = settings.keymap;
+
+        // while we don't have a real menu, just exit the game on keypress
+        if game.input.is_key_pressed(keys.menus.exit, None) {
             return None;
         }
 
@@ -150,25 +157,25 @@ impl game::GameState for State {
         }
 
         // reload scene
-        if game.input.is_key_pressed(Key::Return, Some(0)) {
+        if game.input.is_key_pressed(keys.menus.reload, Some(0)) {
             self.reset();
             self.instantiate_scene();
         }
 
         // toggle debug visualization
-        if game.input.is_key_pressed(Key::G, Some(0)) {
+        if game.input.is_key_pressed(keys.debug.toggle_grid, Some(0)) {
             self.grid_vis_active = !self.grid_vis_active;
         }
 
         match self.state {
             StateEnum::Playing => {
-                if game.input.is_key_pressed(Key::P, Some(0)) {
+                if game.input.is_key_pressed(keys.menus.pause, Some(0)) {
                     self.state = StateEnum::Paused;
                     return Some(());
                 }
 
                 // respawn player
-                if game.input.is_key_pressed(Key::R, Some(0)) {
+                if game.input.is_key_pressed(keys.player.respawn, Some(0)) {
                     self.player.respawn(&*self.scene.read(), &mut self.graph);
                 }
 
@@ -177,14 +184,18 @@ impl game::GameState for State {
                     self.physics.tick(dt, &grav, self.graph.get_layer_bundle());
                 }
                 {
-                    self.player
-                        .tick(&game.input, &mut self.physics, &mut self.graph);
+                    self.player.tick(
+                        &game.input,
+                        &keys.player,
+                        &mut self.physics,
+                        &mut self.graph,
+                    );
                 }
 
                 Some(())
             }
             StateEnum::Paused => {
-                if game.input.is_key_pressed(Key::P, Some(0)) {
+                if game.input.is_key_pressed(keys.menus.pause, Some(0)) {
                     self.state = StateEnum::Playing;
                     return Some(());
                 }
