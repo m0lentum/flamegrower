@@ -43,7 +43,7 @@ fn main() {
     let game = Game::init(
         60,
         winit::window::WindowBuilder::new()
-            .with_title("Floramancer")
+            .with_title("Flamegrower")
             .with_inner_size(winit::dpi::LogicalSize {
                 width: 1280.0,
                 height: 720.0,
