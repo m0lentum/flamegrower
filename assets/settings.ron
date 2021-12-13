@@ -11,7 +11,9 @@
       up: Up,
       down: Down,
       jump: LShift,
-      aim: Z,
+      aim_new: Z,
+      ignite: Z,
+      aim_connect: X,
       respawn: R,
     ),
     debug: (

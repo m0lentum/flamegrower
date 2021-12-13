@@ -39,7 +39,9 @@ pub struct PlayerKeys {
     pub up: Key,
     pub down: Key,
     pub jump: Key,
-    pub aim: Key,
+    pub aim_new: Key,
+    pub ignite: Key,
+    pub aim_connect: Key,
     pub respawn: Key,
 }
 

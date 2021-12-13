@@ -2,7 +2,7 @@ use starframe::{
     self as sf,
     graph::{LayerViewMut, NodeKey},
     graphics as gx,
-    input::{Key, KeyAxisState},
+    input::KeyAxisState,
     math as m, physics as phys,
 };
 
@@ -24,14 +24,21 @@ const BOOST_BONUS_SPEED: f64 = 0.2;
 
 // types
 
+#[derive(Clone, Copy, Debug)]
 pub struct PlayerController {
     body: Option<PlayerNodes>,
-    attached_rope: Option<NodeKey<phys::Rope>>,
+    attached_rope: Option<AttachedRope>,
 }
+#[derive(Clone, Copy, Debug)]
 struct PlayerNodes {
     pose: NodeKey<m::Pose>,
     body: NodeKey<phys::Body>,
     coll: NodeKey<phys::Collider>,
+}
+#[derive(Clone, Copy, Debug)]
+struct AttachedRope {
+    rope: phys::RopeProperties,
+    player_constraint: phys::ConstraintHandle,
 }
 
 type Layers<'a> = (
@@ -182,76 +189,164 @@ impl PlayerController {
         // spawn and delete ropes
         //
 
-        match (input.is_key_pressed(keys.aim, Some(0)), self.attached_rope) {
-            (true, Some(rope)) => {
-                // need to drop the layer views manually to be able to delete here
-                drop(l_pose);
-                drop(l_body);
-                drop(l_collider);
-                drop(l_shape);
-                graph.delete(rope);
-                self.attached_rope = None;
-            }
-            (true, None) => {
-                let ray_dir = if target_vdir == 0.0 && target_hdir == 0.0 {
-                    // shoot the rope upwards by default
-                    m::Unit::unit_y()
-                } else {
-                    m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir))
-                };
+        // TODO: this is a bit of a clumsy block of conditions,
+        // probably refactor this a bit when implementing aim on press and shoot on release
+        if matches!(
+            (
+                self.attached_rope,
+                input.is_key_pressed(keys.aim_new, Some(0)),
+                input.is_key_pressed(keys.aim_connect, Some(0)),
+            ),
+            (None, true, _) | (Some(_), _, true)
+        ) {
+            let ray_dir = if target_vdir == 0.0 && target_hdir == 0.0 {
+                // shoot the rope upwards by default
+                // (TODO instead: aiming mode when holding aim,
+                // shoot in arrow key direction on release or cancel if no direction held)
+                m::Unit::unit_y()
+            } else {
+                m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir))
+            };
 
-                let ray = phys::Ray {
-                    start: player_pose.translation + *ray_dir * RAY_START_OFFSET,
-                    dir: ray_dir,
-                };
-                if let Some(hit) = physics.raycast(
-                    ray,
-                    RAY_MAX_DISTANCE,
-                    (l_pose.subview(), l_collider.subview()),
-                ) {
-                    if hit.t >= ROPE_MIN_LENGTH {
-                        let player_pos = player_pose.translation;
-                        // start at the other end to control angle constraint propagation
-                        let rope_start = ray.point_at_t(hit.t - 0.05);
-                        let rope_end = ray.point_at_t(0.05);
-                        let rope = phys::spawn_rope_line(
-                            phys::Rope {
-                                ..Default::default()
-                            },
-                            rope_start,
-                            rope_end,
+            let ray = phys::Ray {
+                start: player_pose.translation + *ray_dir * RAY_START_OFFSET,
+                dir: ray_dir,
+            };
+            if let Some(hit) = physics.raycast(
+                ray,
+                RAY_MAX_DISTANCE,
+                (l_pose.subview(), l_collider.subview()),
+            ) {
+                match self.attached_rope {
+                    //
+                    // new rope
+                    //
+                    None => {
+                        if hit.t >= ROPE_MIN_LENGTH {
+                            let player_pos = player_pose.translation;
+                            // start at the other end to control angle constraint propagation
+                            let rope_start = ray.point_at_t(hit.t - 0.05);
+                            let rope_end = ray.point_at_t(0.05);
+                            let rope = phys::spawn_rope_line(
+                                phys::Rope {
+                                    ..Default::default()
+                                },
+                                rope_start,
+                                rope_end,
+                                (
+                                    l_body.subview_mut(),
+                                    l_pose.subview_mut(),
+                                    l_collider.subview_mut(),
+                                    graph.get_layer_mut(),
+                                    l_shape.subview_mut(),
+                                ),
+                            );
+
+                            // constraint on the player
+
+                            let player_constraint = physics.add_constraint(
+                                phys::ConstraintBuilder::new(nodes.body)
+                                    .with_target(rope.last_particle)
+                                    .with_limit(phys::ConstraintLimit::Lt)
+                                    .build_distance((rope_end - player_pos).mag()),
+                            );
+
+                            // constraint on the target
+
+                            let coll_hit = l_collider.get_unchecked(hit.collider);
+                            match coll_hit.get_neighbor(&l_body.subview()) {
+                                Some(body) => {
+                                    let offset = rope_start
+                                        - body
+                                            .get_neighbor(&l_pose.subview())
+                                            .map(|p| p.c.translation)
+                                            .unwrap_or_default();
+                                    physics.add_constraint(
+                                        phys::ConstraintBuilder::new(rope.first_particle)
+                                            .with_target(body.key())
+                                            .with_target_origin(offset)
+                                            .build_attachment(),
+                                    );
+                                }
+                                None => {
+                                    physics.add_constraint(
+                                        phys::ConstraintBuilder::new(rope.first_particle)
+                                            .with_target_origin(rope_start)
+                                            .build_attachment(),
+                                    );
+                                }
+                            }
+
+                            self.attached_rope = Some(AttachedRope {
+                                rope,
+                                player_constraint,
+                            });
+
+                            // adjust player velocity towards the circle around the attachment point
+                            // for juicy swings
+
+                            // reborrow needed to allow subviews of the layer above
+                            let player_body = l_body.get_mut_unchecked(nodes.body).c;
+
+                            let vel_mag = player_body.velocity.linear.mag();
+                            let vel_dir =
+                                m::Unit::new_unchecked(player_body.velocity.linear / vel_mag);
+
+                            let player_to_center = rope_start - player_pos;
+                            let tangent = m::Unit::new_normalize(m::left_normal(player_to_center));
+                            let tan_dot_vel = tangent.dot(*vel_dir);
+                            let (tangent, tan_dot_vel) = if tan_dot_vel >= 0.0 {
+                                (tangent, tan_dot_vel)
+                            } else {
+                                (-tangent, -tan_dot_vel)
+                            };
+
+                            let dot_limit = m::Angle::Deg(BOOST_ANGLE_LIMIT).rad().cos();
+                            if tan_dot_vel > dot_limit {
+                                player_body.velocity.linear =
+                                    (BOOST_BONUS_SPEED + vel_mag) * *tangent;
+                            }
+                        }
+                    }
+                    //
+                    // disconnect existing rope from self and connect to whatever was hit
+                    //
+                    Some(attached) => {
+                        physics.remove_constraint(attached.player_constraint);
+                        self.attached_rope = None;
+
+                        let curr_end_body = l_body.get(attached.rope.last_particle)?;
+                        let curr_end = curr_end_body.get_neighbor(&l_pose.subview())?.c.translation;
+                        let new_segment_end = ray.point_at_t(hit.t - 0.05);
+                        let dir = m::Unit::new_normalize(new_segment_end - curr_end);
+
+                        let mut l_rope = graph.get_layer_mut();
+                        let rope_node = l_rope.get_mut(attached.rope.rope_node)?;
+                        let dist = (new_segment_end - curr_end).mag();
+                        let new_particle_count = (dist / rope_node.c.spacing) as usize;
+
+                        let new_rope = phys::extend_rope_line(
+                            rope_node,
+                            dir,
+                            new_particle_count,
                             (
                                 l_body.subview_mut(),
                                 l_pose.subview_mut(),
                                 l_collider.subview_mut(),
-                                graph.get_layer_mut(),
                                 l_shape.subview_mut(),
                             ),
                         );
 
-                        self.attached_rope = Some(rope.rope_node);
-
-                        // constraint on the player
-
-                        physics.add_constraint(
-                            phys::ConstraintBuilder::new(nodes.body)
-                                .with_target(rope.last_particle)
-                                .with_limit(phys::ConstraintLimit::Lt)
-                                .build_distance((rope_end - player_pos).mag()),
-                        );
-
-                        // constraint on the target
-
                         let coll_hit = l_collider.get_unchecked(hit.collider);
                         match coll_hit.get_neighbor(&l_body.subview()) {
                             Some(body) => {
-                                let offset = rope_start
+                                let offset = new_segment_end
                                     - body
                                         .get_neighbor(&l_pose.subview())
                                         .map(|p| p.c.translation)
                                         .unwrap_or_default();
                                 physics.add_constraint(
-                                    phys::ConstraintBuilder::new(rope.first_particle)
+                                    phys::ConstraintBuilder::new(new_rope.last_particle)
                                         .with_target(body.key())
                                         .with_target_origin(offset)
                                         .build_attachment(),
@@ -259,39 +354,32 @@ impl PlayerController {
                             }
                             None => {
                                 physics.add_constraint(
-                                    phys::ConstraintBuilder::new(rope.first_particle)
-                                        .with_target_origin(rope_start)
+                                    phys::ConstraintBuilder::new(new_rope.last_particle)
+                                        .with_target_origin(new_segment_end)
                                         .build_attachment(),
                                 );
                             }
                         }
-
-                        // adjust player velocity towards the circle around the attachment point
-                        // for juicy swings
-
-                        // reborrow needed to allow subviews of the layer above
-                        let player_body = l_body.get_mut_unchecked(nodes.body).c;
-
-                        let vel_mag = player_body.velocity.linear.mag();
-                        let vel_dir = m::Unit::new_unchecked(player_body.velocity.linear / vel_mag);
-
-                        let player_to_center = rope_start - player_pos;
-                        let tangent = m::Unit::new_normalize(m::left_normal(player_to_center));
-                        let tan_dot_vel = tangent.dot(*vel_dir);
-                        let (tangent, tan_dot_vel) = if tan_dot_vel >= 0.0 {
-                            (tangent, tan_dot_vel)
-                        } else {
-                            (-tangent, -tan_dot_vel)
-                        };
-
-                        let dot_limit = m::Angle::Deg(BOOST_ANGLE_LIMIT).rad().cos();
-                        if tan_dot_vel > dot_limit {
-                            player_body.velocity.linear = (BOOST_BONUS_SPEED + vel_mag) * *tangent;
-                        }
                     }
                 }
             }
-            (false, _) => (),
+        }
+        //
+        // ignite only if not simultaneously shooting
+        //
+        else if let (true, Some(attached)) = (
+            input.is_key_pressed(keys.ignite, Some(0)),
+            self.attached_rope,
+        ) {
+            // TODO: start a propagating burning process instead of immediate delete
+
+            // need to drop the layer views manually to be able to delete here
+            drop(l_pose);
+            drop(l_body);
+            drop(l_collider);
+            drop(l_shape);
+            graph.delete(attached.rope.rope_node);
+            self.attached_rope = None;
         }
 
         Some(())
