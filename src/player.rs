@@ -321,12 +321,12 @@ impl PlayerController {
                         let dir = m::Unit::new_normalize(new_segment_end - curr_end);
 
                         let mut l_rope = graph.get_layer_mut();
-                        let rope_node = l_rope.get_mut(attached.rope.rope_node)?;
+                        let mut rope_node = l_rope.get_mut(attached.rope.rope_node)?;
                         let dist = (new_segment_end - curr_end).mag();
                         let new_particle_count = (dist / rope_node.c.spacing) as usize;
 
                         let new_rope = phys::extend_rope_line(
-                            rope_node,
+                            &mut rope_node,
                             dir,
                             new_particle_count,
                             (
