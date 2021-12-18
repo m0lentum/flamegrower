@@ -10,6 +10,7 @@ use starframe::{
 
 use assets_manager::{AssetCache, Handle};
 
+mod fire;
 mod player;
 mod scene;
 use scene::Scene;
@@ -19,7 +20,7 @@ use settings::Settings;
 mod collision_layers {
     use starframe::physics::collision::{MaskMatrix, ROPE_LAYER};
 
-    pub const PLAYER: u64 = 1;
+    pub const PLAYER: usize = 1;
 
     pub(super) fn create_layer_matrix() -> MaskMatrix {
         let mut mat = MaskMatrix::default();
@@ -59,7 +60,9 @@ fn main() {
 // State types
 //
 
-type MyGraph = make_graph! {};
+type MyGraph = make_graph! {
+    fire::Flammable,
+};
 
 enum StateEnum {
     Playing,
@@ -179,18 +182,17 @@ impl game::GameState for State {
                     self.player.respawn(&*self.scene.read(), &mut self.graph);
                 }
 
-                {
-                    let grav = phys::forcefield::Gravity(m::Vec2::new(0.0, -9.81));
-                    self.physics.tick(dt, &grav, self.graph.get_layer_bundle());
-                }
-                {
-                    self.player.tick(
-                        &game.input,
-                        &keys.player,
-                        &mut self.physics,
-                        &mut self.graph,
-                    );
-                }
+                let grav = phys::forcefield::Gravity(m::Vec2::new(0.0, -9.81));
+                self.physics.tick(dt, &grav, self.graph.get_layer_bundle());
+
+                self.player.tick(
+                    &game.input,
+                    &keys.player,
+                    &mut self.physics,
+                    &mut self.graph,
+                );
+
+                fire::tick(dt, &mut self.physics, &mut self.graph);
 
                 Some(())
             }

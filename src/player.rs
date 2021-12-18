@@ -1,10 +1,10 @@
+//! Player controller
+
 use starframe::{
-    self as sf,
-    graph::{LayerViewMut, NodeKey},
-    graphics as gx,
-    input::KeyAxisState,
-    math as m, physics as phys,
+    self as sf, graph::NodeKey, graphics as gx, input::KeyAxisState, math as m, physics as phys,
 };
+
+use crate::fire::Flammable;
 
 // tuning constants
 
@@ -41,13 +41,6 @@ struct AttachedRope {
     player_constraint: phys::ConstraintHandle,
 }
 
-type Layers<'a> = (
-    LayerViewMut<'a, m::Pose>,
-    LayerViewMut<'a, phys::Collider>,
-    LayerViewMut<'a, phys::Body>,
-    LayerViewMut<'a, gx::Shape>,
-);
-
 impl PlayerController {
     pub fn new() -> Self {
         Self {
@@ -61,8 +54,10 @@ impl PlayerController {
             graph.delete(nodes.body);
         }
 
-        let (mut l_pose, mut l_collider, mut l_body, mut l_shape): Layers =
-            graph.get_layer_bundle();
+        let mut l_pose = graph.get_layer_mut::<m::Pose>();
+        let mut l_collider = graph.get_layer_mut::<phys::Collider>();
+        let mut l_body = graph.get_layer_mut::<phys::Body>();
+        let mut l_shape = graph.get_layer_mut::<gx::Shape>();
 
         let mut pose = l_pose.insert(m::Pose::new(scene.player_start, m::Angle::Deg(90.0).into()));
         let mut coll = l_collider.insert(
@@ -97,8 +92,12 @@ impl PlayerController {
     ) -> Option<()> {
         let nodes = self.body.as_ref()?;
 
-        let (mut l_pose, mut l_collider, mut l_body, mut l_shape): Layers =
-            graph.get_layer_bundle();
+        let mut l_pose = graph.get_layer_mut::<m::Pose>();
+        let mut l_collider = graph.get_layer_mut::<phys::Collider>();
+        let mut l_body = graph.get_layer_mut::<phys::Body>();
+        let mut l_shape = graph.get_layer_mut::<gx::Shape>();
+        let mut l_rope = graph.get_layer_mut::<phys::Rope>();
+        let mut l_flammable = graph.get_layer_mut::<Flammable>();
 
         let player_body = l_body.get_mut(nodes.body)?.c;
         let player_pose = l_pose.get(nodes.pose)?.c;
@@ -237,10 +236,19 @@ impl PlayerController {
                                     l_body.subview_mut(),
                                     l_pose.subview_mut(),
                                     l_collider.subview_mut(),
-                                    graph.get_layer_mut(),
+                                    l_rope.subview_mut(),
                                     l_shape.subview_mut(),
                                 ),
                             );
+                            // make it flammable
+                            let mut iter =
+                                phys::RopeIterMut::new(l_rope.get(rope.rope_node)?, &mut l_body);
+                            while let Some(mut particle) = iter.next() {
+                                let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
+                                let mut flammable = l_flammable.insert(Flammable::default());
+                                flammable.connect(&mut coll);
+                                flammable.connect(&mut particle);
+                            }
 
                             // constraint on the player
 
@@ -320,7 +328,6 @@ impl PlayerController {
                         let new_segment_end = ray.point_at_t(hit.t - 0.05);
                         let dir = m::Unit::new_normalize(new_segment_end - curr_end);
 
-                        let mut l_rope = graph.get_layer_mut();
                         let mut rope_node = l_rope.get_mut(attached.rope.rope_node)?;
                         let dist = (new_segment_end - curr_end).mag();
                         let new_particle_count = (dist / rope_node.c.spacing) as usize;
@@ -336,6 +343,19 @@ impl PlayerController {
                                 l_shape.subview_mut(),
                             ),
                         );
+                        // make the newly added part flammable
+                        let mut iter =
+                            phys::RopeIterMut::new(l_rope.get(new_rope.rope_node)?, &mut l_body);
+                        while let Some(mut particle) = iter.next() {
+                            if particle.get_neighbor_mut(&mut l_flammable).is_none() {
+                                let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
+                                let mut flammable = l_flammable.insert(Flammable::default());
+                                flammable.connect(&mut coll);
+                                flammable.connect(&mut particle);
+                            }
+                        }
+
+                        // constraint on the new target
 
                         let coll_hit = l_collider.get_unchecked(hit.collider);
                         match coll_hit.get_neighbor(&l_body.subview()) {
@@ -365,21 +385,18 @@ impl PlayerController {
             }
         }
         //
-        // ignite only if not simultaneously shooting
+        // ignite (only if not simultaneously shooting)
         //
         else if let (true, Some(attached)) = (
             input.is_key_pressed(keys.ignite, Some(0)),
             self.attached_rope,
         ) {
-            // TODO: start a propagating burning process instead of immediate delete
-
-            // need to drop the layer views manually to be able to delete here
-            drop(l_pose);
-            drop(l_body);
-            drop(l_collider);
-            drop(l_shape);
-            graph.delete(attached.rope.rope_node);
+            physics.remove_constraint(attached.player_constraint);
             self.attached_rope = None;
+
+            let particle = l_body.get(attached.rope.last_particle)?;
+            let flammable = particle.get_neighbor_mut(&mut l_flammable)?;
+            flammable.c.ignite();
         }
 
         Some(())
