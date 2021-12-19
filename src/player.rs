@@ -1,7 +1,12 @@
 //! Player controller
 
 use starframe::{
-    self as sf, graph::NodeKey, graphics as gx, input::KeyAxisState, math as m, physics as phys,
+    self as sf,
+    graph::NodeKey,
+    graphics as gx,
+    input::KeyAxisState,
+    math as m,
+    physics::{self as phys, rope},
 };
 
 use crate::fire::Flammable;
@@ -37,7 +42,7 @@ struct PlayerNodes {
 }
 #[derive(Clone, Copy, Debug)]
 struct AttachedRope {
-    rope: phys::RopeProperties,
+    rope: rope::RopeProperties,
     player_constraint: phys::ConstraintHandle,
 }
 
@@ -96,7 +101,7 @@ impl PlayerController {
         let mut l_collider = graph.get_layer_mut::<phys::Collider>();
         let mut l_body = graph.get_layer_mut::<phys::Body>();
         let mut l_shape = graph.get_layer_mut::<gx::Shape>();
-        let mut l_rope = graph.get_layer_mut::<phys::Rope>();
+        let mut l_rope = graph.get_layer_mut::<rope::Rope>();
         let mut l_flammable = graph.get_layer_mut::<Flammable>();
 
         let player_body = l_body.get_mut(nodes.body)?.c;
@@ -226,8 +231,8 @@ impl PlayerController {
                             // start at the other end to control angle constraint propagation
                             let rope_start = ray.point_at_t(hit.t - 0.05);
                             let rope_end = ray.point_at_t(0.05);
-                            let rope = phys::spawn_rope_line(
-                                phys::Rope {
+                            let rope = rope::spawn_line(
+                                rope::Rope {
                                     ..Default::default()
                                 },
                                 rope_start,
@@ -242,7 +247,7 @@ impl PlayerController {
                             );
                             // make it flammable
                             let mut iter =
-                                phys::RopeIterMut::new(l_rope.get(rope.rope_node)?, &mut l_body);
+                                rope::RopeIterMut::new(l_rope.get(rope.rope_node)?, &mut l_body);
                             while let Some(mut particle) = iter.next() {
                                 let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
                                 let mut flammable = l_flammable.insert(Flammable::default());
@@ -332,7 +337,7 @@ impl PlayerController {
                         let dist = (new_segment_end - curr_end).mag();
                         let new_particle_count = (dist / rope_node.c.spacing) as usize;
 
-                        let new_rope = phys::extend_rope_line(
+                        let new_rope = rope::extend_line(
                             &mut rope_node,
                             dir,
                             new_particle_count,
@@ -345,7 +350,7 @@ impl PlayerController {
                         );
                         // make the newly added part flammable
                         let mut iter =
-                            phys::RopeIterMut::new(l_rope.get(new_rope.rope_node)?, &mut l_body);
+                            rope::RopeIterMut::new(l_rope.get(new_rope.rope_node)?, &mut l_body);
                         while let Some(mut particle) = iter.next() {
                             if particle.get_neighbor_mut(&mut l_flammable).is_none() {
                                 let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
