@@ -3,7 +3,10 @@
 use starframe::{
     graph::NodeKey,
     math as m,
-    physics::{Collider, Physics},
+    physics::{
+        rope::{self, Rope},
+        Body, Collider, Physics,
+    },
 };
 
 const FIRE_SPREAD_RANGE: f64 = 0.2;
@@ -82,6 +85,8 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
     let mut l_flammable = graph.get_layer_mut::<Flammable>();
     let l_collider = graph.get_layer::<Collider>();
     let l_pose = graph.get_layer::<m::Pose>();
+    let mut l_body = graph.get_layer_mut::<Body>();
+    let mut l_rope = graph.get_layer_mut::<Rope>();
 
     // reset cooling down state
 
@@ -125,7 +130,7 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
                 Some(f) => f,
                 None => continue,
             };
-            delta_temps.push((other_flammable.key(), flammable.c.params.burning_heat));
+            delta_temps.push((other_flammable.key(), flammable.c.params.burning_heat * dt));
         }
     }
     drop(l_flammable_immut);
@@ -141,9 +146,11 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
         }
     }
 
-    // cool down ones that weren't heated up
-    // and ignite ones that heated up enough
+    // cool down ones that weren't heated up,
+    // ignite ones that heated up enough,
+    // destroy ones that burned for long enough
 
+    let mut to_destroy: Vec<NodeKey<Flammable>> = Vec::new();
     for flammable in l_flammable.iter_mut() {
         match flammable.c.state {
             FlammableState::OnFire {
@@ -151,7 +158,18 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
             } => {
                 *time_burning += dt;
                 if *time_burning >= flammable.c.params.time_to_burn {
-                    // TODO: destroy (somewhat involved because of rope particles)
+                    to_destroy.push(flammable.key());
+                    // if this is a rope particle, disconnect it from the rope
+                    // so the whole thing doesn't get deleted at once
+                    let body = match flammable.get_neighbor_mut(&mut l_body) {
+                        Some(b) => b,
+                        None => continue,
+                    };
+                    let _rope = match body.get_neighbor_mut(&mut l_rope) {
+                        Some(r) => r,
+                        None => continue,
+                    };
+                    rope::detach_particle(body.key(), (l_body.subview_mut(), l_rope.subview_mut()));
                 }
             }
             FlammableState::NotOnFire {
@@ -159,24 +177,17 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
                 cooling_down,
             } => {
                 if cooling_down {
-                    *temperature = (*temperature - flammable.c.params.cooldown_rate).max(0.0);
+                    *temperature = (*temperature - flammable.c.params.cooldown_rate * dt).max(0.0);
                 } else if *temperature >= flammable.c.params.temp_to_catch_fire {
                     flammable.c.ignite();
-
-                    // temporary hackery to test visually that fire spreads
-                    // before implementing destroying
-                    // TODO: build temperature into rendering as a tint
-                    // (and correctly destroy stuff when it burns down)
-                    let mut l_shape = graph.get_layer_mut::<starframe::graphics::Shape>();
-                    if let Some(shape) = flammable
-                        .get_neighbor(&l_collider)
-                        .and_then(|coll| coll.get_neighbor(&l_pose))
-                        .and_then(|pose| pose.get_neighbor_mut(&mut l_shape))
-                    {
-                        shape.c.set_color([1.0, 0.2, 0.3, 1.0]);
-                    }
                 }
             }
         }
+    }
+
+    drop((l_flammable, l_collider, l_pose, l_body, l_rope));
+
+    for flammable in to_destroy {
+        graph.delete(flammable);
     }
 }
