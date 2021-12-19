@@ -16,16 +16,16 @@ use crate::fire::Flammable;
 const COLL_R: f64 = 0.1;
 const COLL_LENGTH: f64 = 0.2;
 const GROUNDED_ANGLE_LIMIT: f64 = 60.0;
-const BASE_MOVE_SPEED: f64 = 6.0;
-const GROUND_ACCEL: f64 = 3.0;
-const AIR_ACCEL: f64 = 1.0;
+const BASE_MOVE_SPEED: f64 = 5.0;
+const GROUND_ACCEL: f64 = 1.0;
+const AIR_ACCEL: f64 = 0.2;
 const ROPE_SWINGING_ACCEL: f64 = 0.1;
 const JUMP_VEL: f64 = 6.0;
 const RAY_START_OFFSET: f64 = 0.21;
 const RAY_MAX_DISTANCE: f64 = 8.0;
 const ROPE_MIN_LENGTH: f64 = 1.0;
 const BOOST_ANGLE_LIMIT: f64 = 60.0;
-const BOOST_BONUS_SPEED: f64 = 0.2;
+const BOOST_BONUS_SPEED: f64 = 0.1;
 
 // types
 
