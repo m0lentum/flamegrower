@@ -2,7 +2,7 @@
 
 use starframe::{
     self as sf,
-    graph::NodeKey,
+    graph::{Graph, NodeKey},
     graphics as gx,
     input::KeyAxisState,
     math as m,
@@ -54,9 +54,9 @@ impl PlayerController {
         }
     }
 
-    pub fn respawn(&mut self, scene: &super::Scene, graph: &mut super::MyGraph) {
+    pub fn respawn(&mut self, scene: &super::Scene, graph: &mut Graph) {
         if let Some(nodes) = &self.body {
-            graph.delete(nodes.body);
+            graph.gather(nodes.body).delete();
         }
 
         let mut l_pose = graph.get_layer_mut::<m::Pose>();
@@ -93,7 +93,7 @@ impl PlayerController {
         input: &sf::InputCache,
         keys: &crate::settings::PlayerKeys,
         physics: &mut phys::Physics,
-        graph: &mut super::MyGraph,
+        graph: &mut Graph,
     ) -> Option<()> {
         let nodes = self.body.as_ref()?;
 
@@ -246,8 +246,8 @@ impl PlayerController {
                                 ),
                             );
                             // make it flammable
-                            let mut iter =
-                                rope::RopeIterMut::new(l_rope.get(rope.rope_node)?, &mut l_body);
+                            let rope_node = l_rope.get(rope.rope_node).unwrap();
+                            let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
                             while let Some(mut particle) = iter.next() {
                                 let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
                                 let mut flammable = l_flammable.insert(Flammable::default());
@@ -349,8 +349,8 @@ impl PlayerController {
                             ),
                         );
                         // make the newly added part flammable
-                        let mut iter =
-                            rope::RopeIterMut::new(l_rope.get(new_rope.rope_node)?, &mut l_body);
+                        let rope_node = l_rope.get(new_rope.rope_node).unwrap();
+                        let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
                         while let Some(mut particle) = iter.next() {
                             if particle.get_neighbor_mut(&mut l_flammable).is_none() {
                                 let mut coll = particle.get_neighbor_mut(&mut l_collider)?;

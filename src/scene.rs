@@ -1,5 +1,5 @@
 use starframe::{
-    graph::LayerViewMut,
+    graph::{Graph, LayerViewMut},
     graphics::Shape,
     math as m,
     physics::{Collider, Physics},
@@ -30,7 +30,7 @@ impl Asset for Scene {
 }
 
 impl Scene {
-    pub fn instantiate(&self, physics: &mut Physics, graph: &super::MyGraph) {
+    pub fn instantiate(&self, physics: &mut Physics, graph: &Graph) {
         for recipe in &self.recipes {
             recipe.spawn(physics, graph.get_layer_bundle());
         }

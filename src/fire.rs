@@ -1,7 +1,7 @@
 //! Logic for propagating fire and having it destroy things.
 
 use starframe::{
-    graph::NodeKey,
+    graph::{Graph, NodeKey},
     math as m,
     physics::{
         rope::{self, Rope},
@@ -81,7 +81,7 @@ impl Default for FlammableParams {
 // tick
 //
 
-pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
+pub fn tick(dt: f64, physics: &mut Physics, graph: &mut Graph) {
     let mut l_flammable = graph.get_layer_mut::<Flammable>();
     let l_collider = graph.get_layer::<Collider>();
     let l_pose = graph.get_layer::<m::Pose>();
@@ -169,7 +169,7 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
                         Some(r) => r,
                         None => continue,
                     };
-                    rope::detach_particle(body.key(), (l_body.subview_mut(), l_rope.subview_mut()));
+                    rope::cut_after(body.key(), (l_body.subview_mut(), l_rope.subview_mut()));
                 }
             }
             FlammableState::NotOnFire {
@@ -188,6 +188,6 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut super::MyGraph) {
     drop((l_flammable, l_collider, l_pose, l_body, l_rope));
 
     for flammable in to_destroy {
-        graph.delete(flammable);
+        graph.gather(flammable).stop_at_layer::<Rope>().delete();
     }
 }

@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use starframe::{
     game::{self, Game},
-    graph::make_graph,
+    graph::{new_graph, Graph},
     graphics as gx,
     input::MouseButton,
     math::{self as m, uv},
@@ -60,17 +60,13 @@ fn main() {
 // State types
 //
 
-type MyGraph = make_graph! {
-    fire::Flammable,
-};
-
 enum StateEnum {
     Playing,
     Paused,
 }
 pub struct State {
     // systems
-    graph: MyGraph,
+    graph: Graph,
     physics: phys::Physics,
     camera: gx::camera::MouseDragCamera,
     shape_renderer: gx::ShapeRenderer,
@@ -89,7 +85,16 @@ impl State {
             .expect("test scene failed to load");
 
         State {
-            graph: MyGraph::new(),
+            graph: new_graph! {
+                // starframe types
+                m::Pose,
+                phys::Body,
+                phys::Collider,
+                phys::rope::Rope,
+                gx::Shape,
+                // our types
+                fire::Flammable,
+            },
             physics: phys::Physics::new(
                 phys::TuningConstants {
                     ..Default::default()
