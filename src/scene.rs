@@ -1,6 +1,6 @@
 use starframe::{
     graph::{Graph, LayerViewMut},
-    graphics::Shape,
+    graphics::Mesh,
     math as m,
     physics::{Collider, Physics},
 };
@@ -58,10 +58,10 @@ impl Recipe {
     pub fn spawn(
         &self,
         _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
-        (mut l_pose, mut l_coll, mut l_shape, mut l_flammable): (
+        (mut l_pose, mut l_coll, mut l_mesh, mut l_flammable): (
             LayerViewMut<m::Pose>,
             LayerViewMut<Collider>,
-            LayerViewMut<Shape>,
+            LayerViewMut<Mesh>,
             LayerViewMut<Flammable>,
         ),
     ) {
@@ -77,9 +77,9 @@ impl Recipe {
 
                     let mut pose = l_pose.insert(m::Pose::new(mid, m::Angle::Rad(angle).into()));
                     let mut coll = l_coll.insert(Collider::new_capsule(len, r));
-                    let mut shape = l_shape.insert(Shape::from_collider(coll.c, [1.0; 4]));
+                    let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([1.0; 4]));
                     pose.connect(&mut coll);
-                    pose.connect(&mut shape);
+                    pose.connect(&mut mesh);
                 }
             }
             Recipe::StaticCollider {
@@ -94,9 +94,9 @@ impl Recipe {
                 } else {
                     [1.0; 4]
                 };
-                let mut shape = l_shape.insert(Shape::from_collider(coll.c, color));
+                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color(color));
                 pose.connect(&mut coll);
-                pose.connect(&mut shape);
+                pose.connect(&mut mesh);
                 if *is_burn_target {
                     let mut flammable = l_flammable.insert(Flammable::new(FlammableParams {
                         time_to_burn: 0.5,

@@ -69,7 +69,8 @@ pub struct State {
     graph: Graph,
     physics: phys::Physics,
     camera: gx::camera::MouseDragCamera,
-    shape_renderer: gx::ShapeRenderer,
+    mesh_renderer: gx::MeshRenderer,
+    outline_renderer: gx::OutlineRenderer,
     debug_visualizer: gx::DebugVisualizer,
     grid_vis_active: bool,
     // content
@@ -91,7 +92,7 @@ impl State {
                 phys::Body,
                 phys::Collider,
                 phys::rope::Rope,
-                gx::Shape,
+                gx::Mesh,
                 // our types
                 fire::Flammable,
             },
@@ -117,7 +118,11 @@ impl State {
                     height: 10.0,
                 },
             ),
-            shape_renderer: gx::ShapeRenderer::new(renderer),
+            mesh_renderer: gx::MeshRenderer::new(renderer),
+            outline_renderer: gx::OutlineRenderer::new(
+                gx::OutlineParams { thickness: 10 },
+                renderer,
+            ),
             debug_visualizer: gx::DebugVisualizer::new(renderer),
             grid_vis_active: false,
             //
@@ -213,6 +218,11 @@ impl game::GameState for State {
     }
 
     fn draw(&mut self, renderer: &mut gx::Renderer) {
+        self.outline_renderer.prepare(renderer);
+        self.outline_renderer
+            .init_meshes(&self.camera, renderer, self.graph.get_layer_bundle());
+        self.outline_renderer.compute(renderer);
+
         let mut ctx = renderer.draw_to_window();
         ctx.clear(wgpu::Color {
             r: 0.1,
@@ -221,7 +231,9 @@ impl game::GameState for State {
             a: 1.0,
         });
 
-        self.shape_renderer
+        self.outline_renderer.draw(&mut ctx);
+
+        self.mesh_renderer
             .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
 
         if self.grid_vis_active {

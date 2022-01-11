@@ -62,7 +62,7 @@ impl PlayerController {
         let mut l_pose = graph.get_layer_mut::<m::Pose>();
         let mut l_collider = graph.get_layer_mut::<phys::Collider>();
         let mut l_body = graph.get_layer_mut::<phys::Body>();
-        let mut l_shape = graph.get_layer_mut::<gx::Shape>();
+        let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
 
         let mut pose = l_pose.insert(m::Pose::new(scene.player_start, m::Angle::Deg(90.0).into()));
         let mut coll = l_collider.insert(
@@ -74,12 +74,12 @@ impl PlayerController {
                 })
                 .with_layer(super::collision_layers::PLAYER),
         );
-        let mut shape = l_shape.insert(gx::Shape::from_collider(coll.c, [0.2, 0.8, 0.6, 1.0]));
+        let mut mesh = l_mesh.insert(gx::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
         let mut body = l_body.insert(phys::Body::new_particle(1.0));
         pose.connect(&mut body);
         pose.connect(&mut coll);
         body.connect(&mut coll);
-        pose.connect(&mut shape);
+        pose.connect(&mut mesh);
 
         self.body = Some(PlayerNodes {
             pose: pose.key(),
@@ -100,7 +100,7 @@ impl PlayerController {
         let mut l_pose = graph.get_layer_mut::<m::Pose>();
         let mut l_collider = graph.get_layer_mut::<phys::Collider>();
         let mut l_body = graph.get_layer_mut::<phys::Body>();
-        let mut l_shape = graph.get_layer_mut::<gx::Shape>();
+        let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
         let mut l_rope = graph.get_layer_mut::<rope::Rope>();
         let mut l_flammable = graph.get_layer_mut::<Flammable>();
 
@@ -233,6 +233,8 @@ impl PlayerController {
                             let rope_end = ray.point_at_t(0.05);
                             let rope = rope::spawn_line(
                                 rope::Rope {
+                                    bending_max_angle: m::Angle::Deg(75.0).rad(),
+                                    bending_compliance: 0.05,
                                     ..Default::default()
                                 },
                                 rope_start,
@@ -242,7 +244,7 @@ impl PlayerController {
                                     l_pose.subview_mut(),
                                     l_collider.subview_mut(),
                                     l_rope.subview_mut(),
-                                    l_shape.subview_mut(),
+                                    l_mesh.subview_mut(),
                                 ),
                             );
                             // make it flammable
@@ -345,7 +347,7 @@ impl PlayerController {
                                 l_body.subview_mut(),
                                 l_pose.subview_mut(),
                                 l_collider.subview_mut(),
-                                l_shape.subview_mut(),
+                                l_mesh.subview_mut(),
                             ),
                         );
                         // make the newly added part flammable
