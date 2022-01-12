@@ -120,7 +120,10 @@ impl State {
             ),
             mesh_renderer: gx::MeshRenderer::new(renderer),
             outline_renderer: gx::OutlineRenderer::new(
-                gx::OutlineParams { thickness: 10 },
+                gx::OutlineParams {
+                    thickness: 10,
+                    shape: gx::OutlineShape::octagon(),
+                },
                 renderer,
             ),
             debug_visualizer: gx::DebugVisualizer::new(renderer),
