@@ -15,10 +15,14 @@ pkgs.mkShell {
     pkgs.lld
     pkgs.llvmPackages.bintools
     pkgs.tracy
+    # asset authoring tools and utilities
+    pkgs.tiled
+    pkgs.jq
+    pkgs.entr
+    pkgs.just
     # for wgpu
     pkgs.pkgconfig
     pkgs.xlibs.libX11
-    pkgs.shaderc
   ];
   # make libraries available
   LD_LIBRARY_PATH = with pkgs.xlibs; with pkgs.lib.strings;

@@ -2,37 +2,41 @@ use starframe::{
     graph::{Graph, LayerViewMut},
     graphics::Mesh,
     math as m,
-    physics::{Collider, Physics},
+    physics::{Collider, ColliderShape, Physics},
 };
 
 use assets_manager::{loader, Asset};
 
-use crate::fire::{Flammable, FlammableParams};
+use crate::{
+    fire::{Flammable, FlammableParams},
+    player::PlayerSpawnPoint,
+};
 
+/// A scene created with the Tiled editor.
+///
+/// Raw tiled scenes need to be run through `export.jq` to parse correctly.
+/// See `just export-scene`.
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(default)]
 pub struct Scene {
-    pub player_start: m::Vec2,
     recipes: Vec<Recipe>,
 }
 impl Default for Scene {
     fn default() -> Self {
-        Self {
-            player_start: m::Vec2::zero(),
-            recipes: vec![],
-        }
+        Self { recipes: vec![] }
     }
 }
 impl Asset for Scene {
-    const EXTENSION: &'static str = "ron";
+    const EXTENSION: &'static str = "json";
 
-    type Loader = loader::RonLoader;
+    type Loader = loader::JsonLoader;
 }
 
 impl Scene {
     pub fn instantiate(&self, physics: &mut Physics, graph: &Graph) {
-        for recipe in &self.recipes {
-            recipe.spawn(physics, graph.get_layer_bundle());
+        let mut l = graph.get_layer_bundle();
+        for recipe in self.recipes.iter() {
+            recipe.spawn(physics, &mut l);
         }
     }
 }
@@ -42,34 +46,59 @@ impl Scene {
 //
 
 #[derive(Clone, Debug, serde::Deserialize)]
+#[serde(tag = "type")]
 pub enum Recipe {
+    PlayerSpawnPoint {
+        pose: TiledPose,
+    },
     StaticCapsuleChain {
-        width: f64,
-        points: Vec<[f64; 2]>,
+        pose: TiledPose,
+        polyline: Vec<m::Vec2>,
+        thickness: f64,
     },
     StaticCollider {
-        pose: m::PoseBuilder,
-        coll: Collider,
-        is_burn_target: bool,
+        pose: TiledPose,
+        width: f64,
+        height: f64,
+        #[serde(default = "false_")]
+        ellipse: bool,
+        #[serde(default = "false_")]
+        capsule: bool,
+        #[serde(default = "false_")]
+        burn_target: bool,
     },
 }
 
 impl Recipe {
+    #[allow(clippy::type_complexity)]
     pub fn spawn(
         &self,
         _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
-        (mut l_pose, mut l_coll, mut l_mesh, mut l_flammable): (
+        // taking layer bundle by reference here to avoid some boilerplate with subviews in
+        // `Scene::instantiate`
+        (ref mut l_pose, ref mut l_coll, ref mut l_mesh, ref mut l_flammable, ref mut l_spawnpt): &mut (
             LayerViewMut<m::Pose>,
             LayerViewMut<Collider>,
             LayerViewMut<Mesh>,
             LayerViewMut<Flammable>,
+            LayerViewMut<PlayerSpawnPoint>,
         ),
     ) {
         match self {
-            Recipe::StaticCapsuleChain { width, points } => {
-                let r = width / 2.0;
-                for p in points.windows(2) {
-                    let p: [m::Vec2; 2] = [p[0].into(), p[1].into()];
+            Recipe::PlayerSpawnPoint { pose } => {
+                let mut pose = l_pose.insert(pose.0);
+                let mut marker = l_spawnpt.insert(PlayerSpawnPoint);
+                pose.connect(&mut marker);
+            }
+            Recipe::StaticCapsuleChain {
+                pose,
+                polyline,
+                thickness,
+            } => {
+                let offset = pose.0.translation;
+                let r = thickness / 2.0;
+                for p in polyline.windows(2) {
+                    let p: [m::Vec2; 2] = [offset + p[0], offset + p[1]];
                     let mid = (p[0] + p[1]) / 2.0;
                     let dist = p[1] - p[0];
                     let len = dist.mag();
@@ -84,12 +113,30 @@ impl Recipe {
             }
             Recipe::StaticCollider {
                 pose,
-                coll,
-                is_burn_target,
+                width,
+                height,
+                ellipse,
+                capsule,
+                burn_target,
             } => {
-                let mut pose = l_pose.insert(pose.build());
-                let mut coll = l_coll.insert(*coll);
-                let color = if *is_burn_target {
+                let mut pose = l_pose.insert(pose.0);
+                let mut coll = l_coll.insert(Collider {
+                    shape: if *ellipse {
+                        ColliderShape::Circle { r: width / 2.0 }
+                    } else if *capsule {
+                        ColliderShape::Capsule {
+                            hl: width / 2.0,
+                            r: height / 2.0,
+                        }
+                    } else {
+                        ColliderShape::Rect {
+                            hw: width / 2.0,
+                            hh: height / 2.0,
+                        }
+                    },
+                    ..Default::default()
+                });
+                let color = if *burn_target {
                     [1.0, 0.2, 0.3, 1.0]
                 } else {
                     [1.0; 4]
@@ -97,7 +144,7 @@ impl Recipe {
                 let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color(color));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
-                if *is_burn_target {
+                if *burn_target {
                     let mut flammable = l_flammable.insert(Flammable::new(FlammableParams {
                         time_to_burn: 0.5,
                         ..Default::default()
@@ -107,4 +154,41 @@ impl Recipe {
             }
         }
     }
+}
+
+//
+// utility types for deserializing tiled
+//
+
+/// Pose deserialized from Tiled data. Every Tiled object has this.
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+#[serde(from = "TiledPoseDeser")]
+pub struct TiledPose(pub m::Pose);
+
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+struct TiledPoseDeser {
+    x: f64,
+    y: f64,
+    rotation: f64,
+}
+
+impl From<TiledPoseDeser> for TiledPose {
+    fn from(p: TiledPoseDeser) -> Self {
+        Self(m::Pose::new(
+            m::Vec2::new(p.x, p.y),
+            m::Angle::Rad(p.rotation).into(),
+        ))
+    }
+}
+
+impl From<TiledPose> for m::Pose {
+    fn from(p: TiledPose) -> Self {
+        p.0
+    }
+}
+
+/// Default for bool fields that aren't present
+#[inline]
+fn false_() -> bool {
+    false
 }

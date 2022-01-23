@@ -1,0 +1,35 @@
+[
+    {
+        "color": "#ff79c347",
+        "name": "PlayerSpawnPoint",
+        "properties": [
+        ]
+    },
+    {
+        "color": "#ffdddde2",
+        "name": "StaticCapsuleChain",
+        "properties": [
+            {
+                "name": "thickness",
+                "type": "float",
+                "value": 0.5
+            }
+        ]
+    },
+    {
+        "color": "#ffdedee3",
+        "name": "StaticCollider",
+        "properties": [
+            {
+                "name": "burn_target",
+                "type": "bool",
+                "value": false
+            },
+            {
+                "name": "capsule",
+                "type": "bool",
+                "value": false
+            }
+        ]
+    }
+]

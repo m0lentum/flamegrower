@@ -3,3 +3,6 @@
 Cargo.lock
 flamegraph.svg
 perf.*
+
+# ignore assets that have a source file in asset-sources
+assets/scenes/

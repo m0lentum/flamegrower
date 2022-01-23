@@ -95,6 +95,7 @@ impl State {
                 gx::Mesh,
                 // our types
                 fire::Flammable,
+                player::PlayerSpawnPoint,
             },
             physics: phys::Physics::new(
                 phys::TuningConstants {
@@ -192,7 +193,7 @@ impl game::GameState for State {
 
                 // respawn player
                 if game.input.is_key_pressed(keys.player.respawn, Some(0)) {
-                    self.player.respawn(&*self.scene.read(), &mut self.graph);
+                    self.player.respawn(&mut self.graph);
                 }
 
                 let grav = phys::forcefield::Gravity(m::Vec2::new(0.0, -9.81));

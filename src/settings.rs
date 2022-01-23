@@ -11,9 +11,9 @@ pub struct Settings {
 // and written in a standard location.
 // Probably figure this out when implementing save files
 impl Asset for Settings {
-    const EXTENSION: &'static str = "ron";
+    const EXTENSION: &'static str = "json";
 
-    type Loader = loader::RonLoader;
+    type Loader = loader::JsonLoader;
 }
 
 #[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]

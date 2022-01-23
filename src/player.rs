@@ -29,6 +29,14 @@ const BOOST_BONUS_SPEED: f64 = 0.1;
 
 // types
 
+/// Marker component indicating a player spawn point, must be attached to a Pose.
+///
+/// For now, we just find the first one and spawn the player on it.
+/// Eventually these will work as checkpoints.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerSpawnPoint;
+
+/// Controller system (not a component).
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerController {
     body: Option<PlayerNodes>,
@@ -54,7 +62,7 @@ impl PlayerController {
         }
     }
 
-    pub fn respawn(&mut self, scene: &super::Scene, graph: &mut Graph) {
+    pub fn respawn(&mut self, graph: &mut Graph) {
         if let Some(nodes) = &self.body {
             graph.gather(nodes.body).delete();
         }
@@ -63,8 +71,18 @@ impl PlayerController {
         let mut l_collider = graph.get_layer_mut::<phys::Collider>();
         let mut l_body = graph.get_layer_mut::<phys::Body>();
         let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
+        let l_spawn = graph.get_layer::<PlayerSpawnPoint>();
 
-        let mut pose = l_pose.insert(m::Pose::new(scene.player_start, m::Angle::Deg(90.0).into()));
+        let spawn_point: m::Vec2 = match l_spawn
+            .iter()
+            .next()
+            .and_then(|s| s.get_neighbor_mut(&mut l_pose))
+        {
+            Some(spawn) => spawn.c.translation,
+            None => m::Vec2::zero(),
+        };
+
+        let mut pose = l_pose.insert(m::Pose::new(spawn_point, m::Angle::Deg(90.0).into()));
         let mut coll = l_collider.insert(
             phys::Collider::new_capsule(COLL_LENGTH, COLL_R)
                 .with_material(phys::Material {
