@@ -14,5 +14,5 @@ export-scenes:
 
 # export a single scene given its file path
 export-scene scene:
-  jq -f asset-sources/tiled/export.jq --argjson scaling 30 {{scene}} \
+  jq -f asset-sources/tiled/export.jq {{scene}} \
     > assets/scenes/$(basename {{scene}})
