@@ -17,19 +17,40 @@ use scene::Scene;
 mod settings;
 use settings::Settings;
 
+//
+// Constants & init
+//
+
+fn world_graph() -> Graph {
+    new_graph! {
+        // starframe types
+        m::Pose,
+        phys::Body,
+        phys::Collider,
+        phys::rope::Rope,
+        gx::Mesh,
+        // our types
+        fire::Flammable,
+        player::PlayerSpawnPoint,
+        player::Interactable,
+    }
+}
+
 mod collision_layers {
     use starframe::physics::collision::{MaskMatrix, ROPE_LAYER};
 
     pub const PLAYER: usize = 1;
+    /// Things that are only interacted with by the player
+    pub const INTERACTABLE: usize = 2;
 
     pub(super) fn create_layer_matrix() -> MaskMatrix {
         let mut mat = MaskMatrix::default();
         mat.ignore(PLAYER, ROPE_LAYER);
+        mat.ignore_all(INTERACTABLE);
+        mat.unignore(INTERACTABLE, PLAYER);
         mat
     }
 }
-
-//
 
 lazy_static! {
     static ref ASSETS: AssetCache = AssetCache::new("assets").expect("assets directory not found");
@@ -86,17 +107,7 @@ impl State {
             .expect("test scene failed to load");
 
         State {
-            graph: new_graph! {
-                // starframe types
-                m::Pose,
-                phys::Body,
-                phys::Collider,
-                phys::rope::Rope,
-                gx::Mesh,
-                // our types
-                fire::Flammable,
-                player::PlayerSpawnPoint,
-            },
+            graph: world_graph(),
             physics: phys::Physics::new(
                 phys::TuningConstants {
                     ..Default::default()

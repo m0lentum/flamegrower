@@ -12,7 +12,7 @@
       "down": "Down",
       "jump": "LShift",
       "aim_new": "Z",
-      "ignite": "Z",
+      "retract": "Z",
       "aim_connect": "X",
       "respawn": "R"
     },

@@ -1,5 +1,11 @@
 [
     {
+        "color": "#ffd53535",
+        "name": "FireFlower",
+        "properties": [
+        ]
+    },
+    {
         "color": "#ff79c347",
         "name": "PlayerSpawnPoint",
         "properties": [

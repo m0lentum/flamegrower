@@ -172,6 +172,18 @@
                  "width":150,
                  "x":450,
                  "y":-142.5
+                }, 
+                {
+                 "height":0,
+                 "id":14,
+                 "name":"fireflower",
+                 "point":true,
+                 "rotation":0,
+                 "type":"FireFlower",
+                 "visible":true,
+                 "width":0,
+                 "x":-330,
+                 "y":135
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -180,7 +192,7 @@
          "y":0
         }],
  "nextlayerid":3,
- "nextobjectid":14,
+ "nextobjectid":15,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.7.2",

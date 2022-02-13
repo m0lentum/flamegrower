@@ -11,6 +11,9 @@ use starframe::{
 
 use crate::fire::Flammable;
 
+pub mod interactables;
+pub use interactables::Interactable;
+
 // tuning constants
 
 const COLL_R: f64 = 0.1;
@@ -40,7 +43,8 @@ pub struct PlayerSpawnPoint;
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerController {
     body: Option<PlayerNodes>,
-    attached_rope: Option<AttachedRope>,
+    attached_vine: Option<AttachedVine>,
+    has_fire: bool,
 }
 #[derive(Clone, Copy, Debug)]
 struct PlayerNodes {
@@ -49,7 +53,7 @@ struct PlayerNodes {
     coll: NodeKey<phys::Collider>,
 }
 #[derive(Clone, Copy, Debug)]
-struct AttachedRope {
+struct AttachedVine {
     rope: rope::RopeProperties,
     player_constraint: phys::ConstraintHandle,
 }
@@ -58,7 +62,8 @@ impl PlayerController {
     pub fn new() -> Self {
         Self {
             body: None,
-            attached_rope: None,
+            attached_vine: None,
+            has_fire: false,
         }
     }
 
@@ -113,7 +118,7 @@ impl PlayerController {
         physics: &mut phys::Physics,
         graph: &mut Graph,
     ) -> Option<()> {
-        let nodes = self.body.as_ref()?;
+        let nodes = self.body?;
 
         let mut l_pose = graph.get_layer_mut::<m::Pose>();
         let mut l_collider = graph.get_layer_mut::<phys::Collider>();
@@ -121,17 +126,36 @@ impl PlayerController {
         let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
         let mut l_rope = graph.get_layer_mut::<rope::Rope>();
         let mut l_flammable = graph.get_layer_mut::<Flammable>();
+        let mut l_interactable = graph.get_layer_mut::<Interactable>();
 
         let player_body = l_body.get_mut(nodes.body)?.c;
         let player_pose = l_pose.get(nodes.pose)?.c;
 
-        // figure out if we're on the ground
+        //
+        // handle contacts (groundedness, interactables)
+        //
 
         let normal_y_limit = m::Angle::Deg(GROUNDED_ANGLE_LIMIT).rad().cos();
 
-        let most_downright_contact = physics
-            .contacts_for_collider(nodes.coll)
-            .min_by(|c0, c1| c0.normal.y.partial_cmp(&c1.normal.y).unwrap());
+        let most_downright_contact = {
+            let mut lowest_cont_y = f64::MAX;
+            let mut lowest_cont = None;
+            for contact in physics.contacts_for_collider(nodes.coll) {
+                let other_coll = match l_collider.get(contact.colliders[1]) {
+                    Some(coll) => coll,
+                    None => continue,
+                };
+                if contact.normal.y < lowest_cont_y && other_coll.c.is_solid() {
+                    lowest_cont_y = contact.normal.y;
+                    lowest_cont = Some(contact);
+                }
+
+                if let Some(interactable) = other_coll.get_neighbor_mut(&mut l_interactable) {
+                    interactable.c.on_contact(self);
+                }
+            }
+            lowest_cont
+        };
 
         #[derive(Debug, Clone, Copy)]
         enum Groundedness {
@@ -160,7 +184,7 @@ impl PlayerController {
             KeyAxisState::Neg => -1.0,
         };
 
-        match (groundedness, self.attached_rope) {
+        match (groundedness, self.attached_vine) {
             // special acceleration-based controls for in air with a rope
             // for improved swing feel and control, hopefully
             (Groundedness::Air, Some(_rope)) => {
@@ -211,11 +235,25 @@ impl PlayerController {
         // spawn and delete ropes
         //
 
+        // if has fire and has vine, next action has to be burning the vine
+        if let (true, Some(attached)) = (self.has_fire, self.attached_vine) {
+            if input.is_key_pressed(keys.retract, Some(0)) {
+                physics.remove_constraint(attached.player_constraint);
+                self.attached_vine = None;
+                self.has_fire = false;
+
+                let particle = l_body.get(attached.rope.last_particle)?;
+                let flammable = particle.get_neighbor_mut(&mut l_flammable)?;
+                flammable.c.ignite();
+            }
+        }
+        // create new rope or attach existing to something
+        //
         // TODO: this is a bit of a clumsy block of conditions,
         // probably refactor this a bit when implementing aim on press and shoot on release
-        if matches!(
+        else if matches!(
             (
-                self.attached_rope,
+                self.attached_vine,
                 input.is_key_pressed(keys.aim_new, Some(0)),
                 input.is_key_pressed(keys.aim_connect, Some(0)),
             ),
@@ -239,7 +277,7 @@ impl PlayerController {
                 RAY_MAX_DISTANCE,
                 (l_pose.subview(), l_collider.subview()),
             ) {
-                match self.attached_rope {
+                match self.attached_vine {
                     //
                     // new rope
                     //
@@ -310,7 +348,7 @@ impl PlayerController {
                                 }
                             }
 
-                            self.attached_rope = Some(AttachedRope {
+                            self.attached_vine = Some(AttachedVine {
                                 rope,
                                 player_constraint,
                             });
@@ -346,7 +384,7 @@ impl PlayerController {
                     //
                     Some(attached) => {
                         physics.remove_constraint(attached.player_constraint);
-                        self.attached_rope = None;
+                        self.attached_vine = None;
 
                         let curr_end_body = l_body.get(attached.rope.last_particle)?;
                         let curr_end = curr_end_body.get_neighbor(&l_pose.subview())?.c.translation;
@@ -409,19 +447,24 @@ impl PlayerController {
                 }
             }
         }
-        //
-        // ignite (only if not simultaneously shooting)
-        //
-        else if let (true, Some(attached)) = (
-            input.is_key_pressed(keys.ignite, Some(0)),
-            self.attached_rope,
+        // remove rope without igniting it (self.has_fire == false)
+        else if let (Some(attached), true) = (
+            self.attached_vine,
+            input.is_key_pressed(keys.retract, Some(0)),
         ) {
-            physics.remove_constraint(attached.player_constraint);
-            self.attached_rope = None;
-
-            let particle = l_body.get(attached.rope.last_particle)?;
-            let flammable = particle.get_neighbor_mut(&mut l_flammable)?;
-            flammable.c.ignite();
+            self.attached_vine = None;
+            // in the future, maybe "pull in" the vine particle by particle
+            // for a nice animation. for now, just delete it
+            drop((
+                l_pose,
+                l_collider,
+                l_body,
+                l_mesh,
+                l_flammable,
+                l_rope,
+                l_interactable,
+            ));
+            graph.gather(attached.rope.rope_node).delete();
         }
 
         Some(())

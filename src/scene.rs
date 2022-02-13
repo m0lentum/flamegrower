@@ -9,22 +9,17 @@ use assets_manager::{loader, Asset};
 
 use crate::{
     fire::{Flammable, FlammableParams},
-    player::PlayerSpawnPoint,
+    player::{Interactable, PlayerSpawnPoint},
 };
 
 /// A scene created with the Tiled editor.
 ///
 /// Raw tiled scenes need to be run through `export.jq` to parse correctly.
 /// See `just export-scene`.
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize)]
 #[serde(default)]
 pub struct Scene {
     recipes: Vec<Recipe>,
-}
-impl Default for Scene {
-    fn default() -> Self {
-        Self { recipes: vec![] }
-    }
 }
 impl Asset for Scene {
     const EXTENSION: &'static str = "json";
@@ -67,6 +62,9 @@ pub enum Recipe {
         #[serde(default = "false_")]
         burn_target: bool,
     },
+    FireFlower {
+        pose: TiledPose,
+    },
 }
 
 impl Recipe {
@@ -74,14 +72,23 @@ impl Recipe {
     pub fn spawn(
         &self,
         _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
-        // taking layer bundle by reference here to avoid some boilerplate with subviews in
-        // `Scene::instantiate`
-        (ref mut l_pose, ref mut l_coll, ref mut l_mesh, ref mut l_flammable, ref mut l_spawnpt): &mut (
+
+        // more verbose than usual - taking layer bundle by reference here
+        // to avoid some boilerplate in `Scene::instantiate`
+        (
+            ref mut l_pose,
+            ref mut l_coll,
+            ref mut l_mesh,
+            ref mut l_flammable,
+            ref mut l_spawnpt,
+            ref mut l_interactable,
+        ): &mut (
             LayerViewMut<m::Pose>,
             LayerViewMut<Collider>,
             LayerViewMut<Mesh>,
             LayerViewMut<Flammable>,
             LayerViewMut<PlayerSpawnPoint>,
+            LayerViewMut<Interactable>,
         ),
     ) {
         match self {
@@ -151,6 +158,19 @@ impl Recipe {
                     }));
                     flammable.connect(&mut coll);
                 }
+            }
+            Recipe::FireFlower { pose } => {
+                let mut pose = l_pose.insert(pose.0);
+                let mut coll = l_coll.insert(
+                    Collider::new_circle(0.5)
+                        .trigger()
+                        .with_layer(crate::collision_layers::INTERACTABLE),
+                );
+                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
+                let mut tag = l_interactable.insert(Interactable::FireFlower { taken: false });
+                pose.connect(&mut coll);
+                pose.connect(&mut mesh);
+                coll.connect(&mut tag);
             }
         }
     }
