@@ -1,7 +1,12 @@
+# build artifacts and profiling data
 /target
 **/*.rs.bk
 flamegraph.svg
 perf.*
 
-# ignore assets that have a source file in asset-sources
+# irrelevant session data
+*.tiled-session
+
+# assets that have source files in asset-sources
+# and can be generated from them with a script
 assets/scenes/
