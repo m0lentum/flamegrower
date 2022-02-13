@@ -1,8 +1,8 @@
 use starframe::{
-    graph::{Graph, LayerViewMut},
+    graph::{Graph, LayerViewMut, NodeRefMut},
     graphics::Mesh,
     math as m,
-    physics::{Collider, ColliderShape, Physics},
+    physics::{Body, Collider, ColliderShape, Material, Physics},
 };
 
 use assets_manager::{loader, Asset};
@@ -15,7 +15,7 @@ use crate::{
 /// A scene created with the Tiled editor.
 ///
 /// Raw tiled scenes need to be run through `export.jq` to parse correctly.
-/// See `just export-scene`.
+/// See `export-scene` in `justfile`.
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 #[serde(default)]
 pub struct Scene {
@@ -37,7 +37,7 @@ impl Scene {
 }
 
 //
-// recipes
+// concrete recipes
 //
 
 #[derive(Clone, Debug, serde::Deserialize)]
@@ -53,14 +53,15 @@ pub enum Recipe {
     },
     StaticCollider {
         pose: TiledPose,
-        width: f64,
-        height: f64,
-        #[serde(default = "false_")]
-        ellipse: bool,
-        #[serde(default = "false_")]
-        capsule: bool,
+        #[serde(flatten)]
+        collider: TiledSimpleShape,
         #[serde(default = "false_")]
         burn_target: bool,
+    },
+    PhysicsObject {
+        pose: TiledPose,
+        #[serde(flatten)]
+        collider: TiledSimpleShape,
     },
     FireFlower {
         pose: TiledPose,
@@ -78,6 +79,7 @@ impl Recipe {
         (
             ref mut l_pose,
             ref mut l_coll,
+            ref mut l_body,
             ref mut l_mesh,
             ref mut l_flammable,
             ref mut l_spawnpt,
@@ -85,6 +87,7 @@ impl Recipe {
         ): &mut (
             LayerViewMut<m::Pose>,
             LayerViewMut<Collider>,
+            LayerViewMut<Body>,
             LayerViewMut<Mesh>,
             LayerViewMut<Flammable>,
             LayerViewMut<PlayerSpawnPoint>,
@@ -120,29 +123,11 @@ impl Recipe {
             }
             Recipe::StaticCollider {
                 pose,
-                width,
-                height,
-                ellipse,
-                capsule,
+                collider,
                 burn_target,
             } => {
                 let mut pose = l_pose.insert(pose.0);
-                let mut coll = l_coll.insert(Collider {
-                    shape: if *ellipse {
-                        ColliderShape::Circle { r: width / 2.0 }
-                    } else if *capsule {
-                        ColliderShape::Capsule {
-                            hl: width / 2.0,
-                            r: height / 2.0,
-                        }
-                    } else {
-                        ColliderShape::Rect {
-                            hw: width / 2.0,
-                            hh: height / 2.0,
-                        }
-                    },
-                    ..Default::default()
-                });
+                let mut coll = collider.spawn(l_coll);
                 let color = if *burn_target {
                     [1.0, 0.2, 0.3, 1.0]
                 } else {
@@ -158,6 +143,16 @@ impl Recipe {
                     }));
                     flammable.connect(&mut coll);
                 }
+            }
+            Recipe::PhysicsObject { pose, collider } => {
+                let mut pose = l_pose.insert(pose.0);
+                let mut coll = collider.spawn(l_coll);
+                let mut body = l_body.insert(Body::new_dynamic(coll.c, 1.0));
+                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
+                pose.connect(&mut coll);
+                pose.connect(&mut mesh);
+                pose.connect(&mut body);
+                body.connect(&mut coll);
             }
             Recipe::FireFlower { pose } => {
                 let mut pose = l_pose.insert(pose.0);
@@ -178,6 +173,7 @@ impl Recipe {
 
 //
 // utility types for deserializing tiled
+// and spawning common patterns
 //
 
 /// Pose deserialized from Tiled data. Every Tiled object has this.
@@ -204,6 +200,55 @@ impl From<TiledPoseDeser> for TiledPose {
 impl From<TiledPose> for m::Pose {
     fn from(p: TiledPose) -> Self {
         p.0
+    }
+}
+
+/// Default physics material should allow player to push boxes
+/// but also rotate large ones by grabbing a high corner and pulling down
+const DEFAULT_PHYSICS_MATERIAL: Material = Material {
+    // big TODO: fix static friction being stronger in one direction
+    // probably best done with a block solver
+    static_friction_coef: None,
+    dynamic_friction_coef: Some(0.2),
+    restitution_coef: 0.0,
+};
+
+/// Non-polygon shapes produced by Tiled (with capsule being a custom extension)
+///
+/// Needs to be used with `#[serde(flatten)]` in recipes
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+pub struct TiledSimpleShape {
+    width: f64,
+    height: f64,
+    #[serde(default = "false_")]
+    ellipse: bool,
+    #[serde(default = "false_")]
+    capsule: bool,
+}
+
+impl TiledSimpleShape {
+    pub fn spawn<'r, 'v: 'r>(
+        &self,
+        l_collider: &'r mut LayerViewMut<'v, Collider>,
+    ) -> NodeRefMut<'r, Collider> {
+        l_collider.insert(
+            Collider::from(if self.ellipse {
+                ColliderShape::Circle {
+                    r: self.width / 2.0,
+                }
+            } else if self.capsule {
+                ColliderShape::Capsule {
+                    hl: self.width / 2.0,
+                    r: self.height / 2.0,
+                }
+            } else {
+                ColliderShape::Rect {
+                    hw: self.width / 2.0,
+                    hh: self.height / 2.0,
+                }
+            })
+            .with_material(DEFAULT_PHYSICS_MATERIAL),
+        )
     }
 }
 

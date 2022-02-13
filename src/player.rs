@@ -327,11 +327,11 @@ impl PlayerController {
                             let coll_hit = l_collider.get_unchecked(hit.collider);
                             match coll_hit.get_neighbor(&l_body.subview()) {
                                 Some(body) => {
-                                    let offset = rope_start
-                                        - body
-                                            .get_neighbor(&l_pose.subview())
-                                            .map(|p| p.c.translation)
-                                            .unwrap_or_default();
+                                    let b_pose = body
+                                        .get_neighbor(&l_pose.subview())
+                                        .map(|p| *p.c)
+                                        .unwrap_or_default();
+                                    let offset = b_pose.inversed() * rope_start;
                                     physics.add_constraint(
                                         phys::ConstraintBuilder::new(rope.first_particle)
                                             .with_target(body.key())

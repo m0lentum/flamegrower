@@ -1,5 +1,11 @@
 [
     {
+        "color": "#ff9fcfd3",
+        "name": "PhysicsObject",
+        "properties": [
+        ]
+    },
+    {
         "color": "#ffd53535",
         "name": "FireFlower",
         "properties": [

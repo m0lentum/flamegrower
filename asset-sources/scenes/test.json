@@ -9,64 +9,6 @@
          "objects":[
                 {
                  "height":0,
-                 "id":2,
-                 "name":"",
-                 "polyline":[
-                        {
-                         "x":-600,
-                         "y":300
-                        }, 
-                        {
-                         "x":-300,
-                         "y":300
-                        }, 
-                        {
-                         "x":-180,
-                         "y":360
-                        }, 
-                        {
-                         "x":-120,
-                         "y":360
-                        }, 
-                        {
-                         "x":0,
-                         "y":300
-                        }, 
-                        {
-                         "x":210,
-                         "y":300
-                        }, 
-                        {
-                         "x":240,
-                         "y":210
-                        }, 
-                        {
-                         "x":300,
-                         "y":210
-                        }, 
-                        {
-                         "x":330,
-                         "y":300
-                        }, 
-                        {
-                         "x":600,
-                         "y":300
-                        }],
-                 "properties":[
-                        {
-                         "name":"thickness",
-                         "type":"float",
-                         "value":0.5
-                        }],
-                 "rotation":0,
-                 "type":"StaticCapsuleChain",
-                 "visible":true,
-                 "width":0,
-                 "x":0,
-                 "y":-150
-                }, 
-                {
-                 "height":0,
                  "id":9,
                  "name":"spawn",
                  "point":true,
@@ -74,91 +16,78 @@
                  "type":"PlayerSpawnPoint",
                  "visible":true,
                  "width":0,
-                 "x":187.5,
-                 "y":127.5
+                 "x":144.732142857143,
+                 "y":194.017857142857
                 }, 
                 {
                  "height":0,
-                 "id":10,
+                 "id":32,
                  "name":"",
                  "polyline":[
                         {
+                         "x":0,
+                         "y":-478.214285714286
+                        }, 
+                        {
+                         "x":0,
+                         "y":-358.214285714286
+                        }, 
+                        {
+                         "x":-75,
+                         "y":-358.214285714286
+                        }, 
+                        {
+                         "x":-75,
+                         "y":-328.214285714286
+                        }, 
+                        {
+                         "x":0,
+                         "y":-328.214285714286
+                        }, 
+                        {
+                         "x":0,
+                         "y":-133.214285714286
+                        }, 
+                        {
+                         "x":-75,
+                         "y":-133.214285714286
+                        }, 
+                        {
+                         "x":-75,
+                         "y":-88.2142857142857
+                        }, 
+                        {
                          "x":-150,
-                         "y":0
+                         "y":-88.2142857142857
                         }, 
                         {
-                         "x":150,
-                         "y":0
+                         "x":-150,
+                         "y":1.78571428571431
                         }, 
                         {
-                         "x":450,
-                         "y":-150
+                         "x":-795,
+                         "y":1.78571428571431
                         }, 
                         {
-                         "x":1050,
-                         "y":-150
+                         "x":-795,
+                         "y":-478.214285714286
                         }],
                  "properties":[
                         {
                          "name":"thickness",
                          "type":"float",
-                         "value":0.5
+                         "value":0.2
                         }],
                  "rotation":0,
                  "type":"StaticCapsuleChain",
                  "visible":true,
                  "width":0,
-                 "x":-450,
-                 "y":0
+                 "x":405,
+                 "y":208.214285714286
                 }, 
                 {
-                 "height":27.4035421159716,
-                 "id":11,
-                 "name":"",
-                 "properties":[
-                        {
-                         "name":"burn_target",
-                         "type":"bool",
-                         "value":true
-                        }, 
-                        {
-                         "name":"capsule",
-                         "type":"bool",
-                         "value":true
-                        }],
-                 "rotation":333.197063490211,
-                 "type":"StaticCollider",
-                 "visible":true,
-                 "width":270,
-                 "x":-255,
-                 "y":0
-                }, 
-                {
-                 "ellipse":true,
-                 "height":60,
-                 "id":12,
-                 "name":"",
-                 "properties":[
-                        {
-                         "name":"burn_target",
-                         "type":"bool",
-                         "value":false
-                        }, 
-                        {
-                         "name":"capsule",
-                         "type":"bool",
-                         "value":false
-                        }],
-                 "rotation":0,
-                 "type":"StaticCollider",
-                 "visible":true,
-                 "width":60,
-                 "x":90,
-                 "y":-60
-                }, 
-                {
-                 "height":285,
-                 "id":13,
+                 "height":90.8928571428571,
+                 "id":20,
                  "name":"",
                  "properties":[
                         {
@@ -169,21 +98,124 @@
                  "rotation":0,
                  "type":"StaticCollider",
                  "visible":true,
-                 "width":150,
-                 "x":450,
-                 "y":-142.5
+                 "width":18.9285714285714,
+                 "x":-202.5,
+                 "y":112.5
                 }, 
                 {
                  "height":0,
-                 "id":14,
-                 "name":"fireflower",
+                 "id":21,
+                 "name":"",
+                 "polyline":[
+                        {
+                         "x":22.5,
+                         "y":-37.8571428571429
+                        }, 
+                        {
+                         "x":-97.5,
+                         "y":-37.5
+                        }, 
+                        {
+                         "x":-97.5,
+                         "y":-110.714285714286
+                        }, 
+                        {
+                         "x":22.5,
+                         "y":-110.714285714286
+                        }, 
+                        {
+                         "x":22.5,
+                         "y":-140.714285714286
+                        }, 
+                        {
+                         "x":-37.5,
+                         "y":-140.714285714286
+                        }, 
+                        {
+                         "x":-37.5,
+                         "y":-260.714285714286
+                        }, 
+                        {
+                         "x":382.5,
+                         "y":-260.714285714286
+                        }, 
+                        {
+                         "x":382.5,
+                         "y":-290.714285714286
+                        }, 
+                        {
+                         "x":-127.5,
+                         "y":-290.714285714286
+                        }, 
+                        {
+                         "x":-127.5,
+                         "y":-5.71428571428569
+                        }, 
+                        {
+                         "x":22.5,
+                         "y":-5.71428571428569
+                        }, 
+                        {
+                         "x":22.5,
+                         "y":-37.8571428571429
+                        }],
+                 "properties":[
+                        {
+                         "name":"thickness",
+                         "type":"float",
+                         "value":0.2
+                        }],
+                 "rotation":0,
+                 "type":"StaticCapsuleChain",
+                 "visible":true,
+                 "width":0,
+                 "x":-172.5,
+                 "y":110.714285714286
+                }, 
+                {
+                 "height":0,
+                 "id":22,
+                 "name":"",
                  "point":true,
                  "rotation":0,
                  "type":"FireFlower",
                  "visible":true,
                  "width":0,
-                 "x":-330,
-                 "y":135
+                 "x":-285,
+                 "y":193.214285714286
+                }, 
+                {
+                 "height":15,
+                 "id":23,
+                 "name":"",
+                 "properties":[
+                        {
+                         "name":"burn_target",
+                         "type":"bool",
+                         "value":true
+                        }, 
+                        {
+                         "name":"capsule",
+                         "type":"bool",
+                         "value":false
+                        }],
+                 "rotation":90,
+                 "type":"StaticCollider",
+                 "visible":true,
+                 "width":60,
+                 "x":-247.5,
+                 "y":7.5
+                }, 
+                {
+                 "height":60,
+                 "id":25,
+                 "name":"",
+                 "rotation":0,
+                 "type":"PhysicsObject",
+                 "visible":true,
+                 "width":37.5,
+                 "x":255,
+                 "y":45
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -192,7 +224,7 @@
          "y":0
         }],
  "nextlayerid":3,
- "nextobjectid":15,
+ "nextobjectid":33,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.7.2",

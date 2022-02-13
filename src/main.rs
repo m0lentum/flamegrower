@@ -126,8 +126,8 @@ impl State {
             ),
             camera: gx::camera::MouseDragCamera::new(
                 gx::camera::ScalingStrategy::ConstantDisplayArea {
-                    width: 20.0,
-                    height: 10.0,
+                    width: 30.0,
+                    height: 15.0,
                 },
             ),
             mesh_renderer: gx::MeshRenderer::new(renderer),
