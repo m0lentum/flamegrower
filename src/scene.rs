@@ -2,7 +2,7 @@ use starframe::{
     graph::{Graph, LayerViewMut, NodeRefMut},
     graphics::Mesh,
     math as m,
-    physics::{Body, Collider, ColliderShape, Material, Physics},
+    physics::{Body, Collider, Material, Physics},
 };
 
 use assets_manager::{loader, Asset};
@@ -232,21 +232,13 @@ impl TiledSimpleShape {
         l_collider: &'r mut LayerViewMut<'v, Collider>,
     ) -> NodeRefMut<'r, Collider> {
         l_collider.insert(
-            Collider::from(if self.ellipse {
-                ColliderShape::Circle {
-                    r: self.width / 2.0,
-                }
+            if self.ellipse {
+                Collider::new_circle(self.width / 2.0)
             } else if self.capsule {
-                ColliderShape::Capsule {
-                    hl: self.width / 2.0,
-                    r: self.height / 2.0,
-                }
+                Collider::new_capsule(self.width, self.height)
             } else {
-                ColliderShape::Rect {
-                    hw: self.width / 2.0,
-                    hh: self.height / 2.0,
-                }
-            })
+                Collider::new_rect(self.width, self.height)
+            }
             .with_material(DEFAULT_PHYSICS_MATERIAL),
         )
     }

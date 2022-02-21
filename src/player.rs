@@ -24,7 +24,7 @@ const GROUND_ACCEL: f64 = 1.0;
 const AIR_ACCEL: f64 = 0.2;
 const ROPE_SWINGING_ACCEL: f64 = 0.1;
 const JUMP_VEL: f64 = 6.0;
-const RAY_START_OFFSET: f64 = 0.21;
+const ROPE_START_OFFSET: f64 = 0.25;
 const RAY_MAX_DISTANCE: f64 = 8.0;
 const ROPE_MIN_LENGTH: f64 = 1.0;
 const BOOST_ANGLE_LIMIT: f64 = 60.0;
@@ -269,7 +269,7 @@ impl PlayerController {
             };
 
             let ray = phys::Ray {
-                start: player_pose.translation + *ray_dir * RAY_START_OFFSET,
+                start: player_pose.translation,
                 dir: ray_dir,
             };
             if let Some(hit) = physics.raycast(
@@ -286,7 +286,7 @@ impl PlayerController {
                             let player_pos = player_pose.translation;
                             // start at the other end to control angle constraint propagation
                             let rope_start = ray.point_at_t(hit.t - 0.05);
-                            let rope_end = ray.point_at_t(0.05);
+                            let rope_end = ray.point_at_t(ROPE_START_OFFSET);
                             let rope = rope::spawn_line(
                                 rope::Rope {
                                     bending_max_angle: m::Angle::Deg(75.0).rad(),
