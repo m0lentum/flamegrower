@@ -147,7 +147,7 @@ impl Recipe {
             Recipe::PhysicsObject { pose, collider } => {
                 let mut pose = l_pose.insert(pose.0);
                 let mut coll = collider.spawn(l_coll);
-                let mut body = l_body.insert(Body::new_dynamic(coll.c, 1.0));
+                let mut body = l_body.insert(Body::new_dynamic(coll.c.info(), 1.0));
                 let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);

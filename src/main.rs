@@ -66,15 +66,15 @@ fn main() {
         60,
         winit::window::WindowBuilder::new()
             .with_title("Flamegrower")
+            // X11 class I use for a window manager rule
+            .with_class("game".into(), "game".into())
             .with_inner_size(winit::dpi::LogicalSize {
                 width: 1280.0,
                 height: 720.0,
-            })
-            // X11 class I use for a window manager rule
-            .with_class("game".into(), "game".into()),
+            }),
     );
     let state = State::init(&game.renderer);
-    game.run(state);
+    game.run(state, None);
 }
 
 //
