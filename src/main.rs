@@ -112,16 +112,6 @@ impl State {
                 phys::TuningConstants {
                     ..Default::default()
                 },
-                phys::collision::HGridParams {
-                    approx_bounds: phys::collision::AABB {
-                        min: m::Vec2::new(-10.0, -6.0),
-                        max: m::Vec2::new(10.0, 6.0),
-                    },
-                    lowest_spacing: 0.6,
-                    level_count: 3,
-                    spacing_ratio: 2,
-                    initial_capacity: 600,
-                },
                 collision_layers::create_layer_matrix(),
             ),
             camera: gx::camera::MouseDragCamera::new(
@@ -253,7 +243,7 @@ impl game::GameState for State {
 
         if self.grid_vis_active {
             self.debug_visualizer
-                .draw_spatial_index(&self.physics, &self.camera, &mut ctx);
+                .draw_bvh(20, &self.physics, &self.camera, &mut ctx);
         }
 
         ctx.submit();

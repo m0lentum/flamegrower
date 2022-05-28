@@ -26,6 +26,7 @@ const ROPE_SWINGING_ACCEL: f64 = 0.1;
 const JUMP_VEL: f64 = 6.0;
 const ROPE_START_OFFSET: f64 = 0.25;
 const RAY_MAX_DISTANCE: f64 = 8.0;
+const SPHERECAST_RADIUS: f64 = 0.1;
 const ROPE_MIN_LENGTH: f64 = 1.0;
 const BOOST_ANGLE_LIMIT: f64 = 60.0;
 const BOOST_BONUS_SPEED: f64 = 0.1;
@@ -272,7 +273,8 @@ impl PlayerController {
                 start: player_pose.translation,
                 dir: ray_dir,
             };
-            if let Some(hit) = physics.raycast(
+            if let Some(hit) = physics.spherecast(
+                SPHERECAST_RADIUS,
                 ray,
                 RAY_MAX_DISTANCE,
                 (l_pose.subview(), l_collider.subview()),
