@@ -287,7 +287,7 @@ impl PlayerController {
                         if hit.t >= ROPE_MIN_LENGTH {
                             let player_pos = player_pose.translation;
                             // start at the other end to control angle constraint propagation
-                            let rope_start = ray.point_at_t(hit.t - 0.05);
+                            let rope_start = ray.point_at_t(hit.t);
                             let rope_end = ray.point_at_t(ROPE_START_OFFSET);
                             let rope = rope::spawn_line(
                                 rope::Rope {
@@ -390,7 +390,7 @@ impl PlayerController {
 
                         let curr_end_body = l_body.get(attached.rope.last_particle)?;
                         let curr_end = curr_end_body.get_neighbor(&l_pose.subview())?.c.translation;
-                        let new_segment_end = ray.point_at_t(hit.t - 0.05);
+                        let new_segment_end = ray.point_at_t(hit.t);
                         let dir = m::Unit::new_normalize(new_segment_end - curr_end);
 
                         let mut rope_node = l_rope.get_mut(attached.rope.rope_node)?;
