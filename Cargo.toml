@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-starframe = { path = "../starframe" }
+starframe = { path = "./starframe" }
 
 # TODO: think about exposing wgpu and winit from starframe
 # to ensure same version
