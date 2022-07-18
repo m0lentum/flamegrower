@@ -4,7 +4,7 @@ use starframe::{
     self as sf,
     graph::{Graph, NodeKey},
     graphics as gx,
-    input::KeyAxisState,
+    input::{AxisQuery, ButtonQuery},
     math as m,
     physics::{self as phys, rope},
 };
@@ -174,16 +174,14 @@ impl PlayerController {
         // move
         //
 
-        let target_hdir = match input.get_key_axis_state(keys.right, keys.left) {
-            KeyAxisState::Zero => 0.0,
-            KeyAxisState::Pos => 1.0,
-            KeyAxisState::Neg => -1.0,
-        };
-        let target_vdir = match input.get_key_axis_state(keys.up, keys.down) {
-            KeyAxisState::Zero => 0.0,
-            KeyAxisState::Pos => 1.0,
-            KeyAxisState::Neg => -1.0,
-        };
+        let target_hdir = input.axis(AxisQuery {
+            pos_btn: keys.right.into(),
+            neg_btn: keys.left.into(),
+        });
+        let target_vdir = input.axis(AxisQuery {
+            pos_btn: keys.up.into(),
+            neg_btn: keys.down.into(),
+        });
 
         match (groundedness, self.attached_vine) {
             // special acceleration-based controls for in air with a rope
@@ -224,11 +222,13 @@ impl PlayerController {
         // jump
         //
 
-        if input.is_key_pressed(keys.jump, Some(0)) {
+        if input.button(keys.jump.into()) {
             if let Groundedness::EvenGround(normal) = groundedness {
                 player_body.velocity.linear -= JUMP_VEL * *normal;
             }
-        } else if input.is_key_released(keys.jump, Some(0)) && player_body.velocity.linear.y > 0.0 {
+        } else if input.button(ButtonQuery::from(keys.jump).released())
+            && player_body.velocity.linear.y > 0.0
+        {
             player_body.velocity.linear.y /= 2.0;
         }
 
@@ -238,7 +238,7 @@ impl PlayerController {
 
         // if has fire and has vine, next action has to be burning the vine
         if let (true, Some(attached)) = (self.has_fire, self.attached_vine) {
-            if input.is_key_pressed(keys.retract, Some(0)) {
+            if input.button(keys.retract.into()) {
                 physics.remove_constraint(attached.player_constraint);
                 self.attached_vine = None;
                 self.has_fire = false;
@@ -255,8 +255,8 @@ impl PlayerController {
         else if matches!(
             (
                 self.attached_vine,
-                input.is_key_pressed(keys.aim_new, Some(0)),
-                input.is_key_pressed(keys.aim_connect, Some(0)),
+                input.button(keys.aim_new.into()),
+                input.button(keys.aim_connect.into()),
             ),
             (None, true, _) | (Some(_), _, true)
         ) {
@@ -450,10 +450,9 @@ impl PlayerController {
             }
         }
         // remove rope without igniting it (self.has_fire == false)
-        else if let (Some(attached), true) = (
-            self.attached_vine,
-            input.is_key_pressed(keys.retract, Some(0)),
-        ) {
+        else if let (Some(attached), true) =
+            (self.attached_vine, input.button(keys.retract.into()))
+        {
             self.attached_vine = None;
             // in the future, maybe "pull in" the vine particle by particle
             // for a nice animation. for now, just delete it

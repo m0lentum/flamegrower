@@ -10,7 +10,7 @@ starframe = { path = "./starframe" }
 
 # TODO: think about exposing wgpu and winit from starframe
 # to ensure same version
-wgpu = "0.12.0"
+wgpu = "0.13.1"
 winit = "0.26.0"
 
 serde = { version = "1.0.132", features = ["derive"] }

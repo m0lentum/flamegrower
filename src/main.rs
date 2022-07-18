@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use starframe::{
-    game::{self, Game},
+    game::{self, Game, GameParams},
     graph::{new_graph, Graph},
     graphics as gx,
     input::MouseButton,
@@ -62,19 +62,19 @@ fn main() {
     ASSETS.enhance_hot_reloading();
 
     use winit::platform::unix::WindowBuilderExtUnix;
-    let game = Game::init(
-        60,
-        winit::window::WindowBuilder::new()
-            .with_title("Flamegrower")
-            // X11 class I use for a window manager rule
-            .with_class("game".into(), "game".into())
-            .with_inner_size(winit::dpi::LogicalSize {
-                width: 1280.0,
-                height: 720.0,
-            }),
-    );
-    let state = State::init(&game.renderer);
-    game.run(state, None);
+    let window = winit::window::WindowBuilder::new()
+        .with_title("Flamegrower")
+        // X11 class I use for a window manager rule
+        .with_class("game".into(), "game".into())
+        .with_inner_size(winit::dpi::LogicalSize {
+            width: 1280.0,
+            height: 720.0,
+        });
+
+    Game::run::<State>(GameParams {
+        window,
+        ..Default::default()
+    });
 }
 
 //
@@ -155,12 +155,16 @@ impl State {
 //
 
 impl game::GameState for State {
+    fn init(renderer: &gx::Renderer) -> Self {
+        Self::init(renderer)
+    }
+
     fn tick(&mut self, dt: f64, game: &Game) -> Option<()> {
         let settings = self.settings.read();
         let keys = settings.keymap;
 
         // while we don't have a real menu, just exit the game on keypress
-        if game.input.is_key_pressed(keys.menus.exit, None) {
+        if game.input.button(keys.menus.exit.into()) {
             return None;
         }
 
@@ -170,30 +174,30 @@ impl game::GameState for State {
         // mouse camera
         self.camera
             .update(&game.input, game.renderer.window_size().into());
-        if (game.input).is_mouse_button_pressed(MouseButton::Middle, Some(0)) {
+        if game.input.button(MouseButton::Middle.into()) {
             self.camera.pose = uv::DSimilarity2::identity();
         }
 
         // reload scene
-        if game.input.is_key_pressed(keys.menus.reload, Some(0)) {
+        if game.input.button(keys.menus.reload.into()) {
             self.reset();
             self.instantiate_scene();
         }
 
         // toggle debug visualization
-        if game.input.is_key_pressed(keys.debug.toggle_grid, Some(0)) {
+        if game.input.button(keys.debug.toggle_grid.into()) {
             self.grid_vis_active = !self.grid_vis_active;
         }
 
         match self.state {
             StateEnum::Playing => {
-                if game.input.is_key_pressed(keys.menus.pause, Some(0)) {
+                if game.input.button(keys.menus.pause.into()) {
                     self.state = StateEnum::Paused;
                     return Some(());
                 }
 
                 // respawn player
-                if game.input.is_key_pressed(keys.player.respawn, Some(0)) {
+                if game.input.button(keys.player.respawn.into()) {
                     self.player.respawn(&mut self.graph);
                 }
 
@@ -212,7 +216,7 @@ impl game::GameState for State {
                 Some(())
             }
             StateEnum::Paused => {
-                if game.input.is_key_pressed(keys.menus.pause, Some(0)) {
+                if game.input.button(keys.menus.pause.into()) {
                     self.state = StateEnum::Playing;
                     return Some(());
                 }
