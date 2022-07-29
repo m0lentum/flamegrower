@@ -30,7 +30,6 @@ def scale(f): f / 30;
       polyline: (if .polyline != null then
         [.polyline[] | { x: scale(x), y: scale(y) }]
         else null end),
-      ellipse: .ellipse?,
     }
     + if .properties != null then [.properties[] | { key: .name, value }] | from_entries else null end
   ]

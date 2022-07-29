@@ -32,7 +32,6 @@ fn world_graph() -> Graph {
         // our types
         fire::Flammable,
         player::PlayerSpawnPoint,
-        player::Interactable,
     }
 }
 

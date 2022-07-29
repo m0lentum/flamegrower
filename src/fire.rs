@@ -35,6 +35,12 @@ impl Flammable {
     pub fn ignite(&mut self) {
         self.state = FlammableState::OnFire { time_burning: 0.0 };
     }
+
+    #[inline]
+    pub fn ignited(mut self) -> Self {
+        self.ignite();
+        self
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -60,7 +66,9 @@ impl Default for FlammableState {
 #[derive(Clone, Copy, Debug)]
 pub struct FlammableParams {
     pub temp_to_catch_fire: f64,
-    pub time_to_burn: f64,
+    /// Time the object spends on fire before being destroyed.
+    /// Set to None to burn forever
+    pub time_to_destroy: Option<f64>,
     /// Temperature of adjacent flammable things increases by this per second
     pub burning_heat: f64,
     /// Temperature of this decreases by this per second if nothing is burning nearby
@@ -70,7 +78,7 @@ impl Default for FlammableParams {
     fn default() -> Self {
         Self {
             temp_to_catch_fire: 10.0,
-            time_to_burn: 0.066,
+            time_to_destroy: Some(0.066),
             burning_heat: 300.0,
             cooldown_rate: 2.0,
         }
@@ -157,7 +165,7 @@ pub fn tick(dt: f64, physics: &mut Physics, graph: &mut Graph) {
                 ref mut time_burning,
             } => {
                 *time_burning += dt;
-                if *time_burning >= flammable.c.params.time_to_burn {
+                if *time_burning >= flammable.c.params.time_to_destroy.unwrap_or(f64::INFINITY) {
                     to_destroy.push(flammable.key());
                     // if this is a rope particle, disconnect it from the rope
                     // so the whole thing doesn't get deleted at once

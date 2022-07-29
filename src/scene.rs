@@ -9,7 +9,7 @@ use assets_manager::{loader, Asset};
 
 use crate::{
     fire::{Flammable, FlammableParams},
-    player::{Interactable, PlayerSpawnPoint},
+    player::PlayerSpawnPoint,
 };
 
 /// A scene created with the Tiled editor.
@@ -43,9 +43,9 @@ impl Scene {
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(tag = "type")]
 pub enum Recipe {
-    PlayerSpawnPoint {
-        pose: TiledPose,
-    },
+    //
+    // world geometry
+    //
     StaticCapsuleChain {
         pose: TiledPose,
         polyline: Vec<m::Vec2>,
@@ -54,17 +54,32 @@ pub enum Recipe {
     StaticCollider {
         pose: TiledPose,
         #[serde(flatten)]
-        collider: TiledSimpleShape,
-        #[serde(default = "false_")]
-        burn_target: bool,
+        collider: TiledCollider,
+    },
+    //
+    // interactive stuff
+    //
+    PlayerSpawnPoint {
+        pose: TiledPose,
     },
     PhysicsObject {
         pose: TiledPose,
         #[serde(flatten)]
-        collider: TiledSimpleShape,
+        collider: TiledCollider,
     },
-    FireFlower {
+    Weed {
         pose: TiledPose,
+        #[serde(flatten)]
+        collider: TiledCollider,
+        #[serde(default = "true_")]
+        is_static: bool,
+    },
+    Flamevine {
+        pose: TiledPose,
+        #[serde(flatten)]
+        collider: TiledCollider,
+        #[serde(default = "true_")]
+        is_static: bool,
     },
 }
 
@@ -83,7 +98,6 @@ impl Recipe {
             ref mut l_mesh,
             ref mut l_flammable,
             ref mut l_spawnpt,
-            ref mut l_interactable,
         ): &mut (
             LayerViewMut<m::Pose>,
             LayerViewMut<Collider>,
@@ -91,15 +105,12 @@ impl Recipe {
             LayerViewMut<Mesh>,
             LayerViewMut<Flammable>,
             LayerViewMut<PlayerSpawnPoint>,
-            LayerViewMut<Interactable>,
         ),
     ) {
         match self {
-            Recipe::PlayerSpawnPoint { pose } => {
-                let mut pose = l_pose.insert(pose.0);
-                let mut marker = l_spawnpt.insert(PlayerSpawnPoint);
-                pose.connect(&mut marker);
-            }
+            //
+            // world geometry
+            //
             Recipe::StaticCapsuleChain {
                 pose,
                 polyline,
@@ -121,28 +132,21 @@ impl Recipe {
                     pose.connect(&mut mesh);
                 }
             }
-            Recipe::StaticCollider {
-                pose,
-                collider,
-                burn_target,
-            } => {
+            Recipe::StaticCollider { pose, collider } => {
                 let mut pose = l_pose.insert(pose.0);
                 let mut coll = collider.spawn(l_coll);
-                let color = if *burn_target {
-                    [1.0, 0.2, 0.3, 1.0]
-                } else {
-                    [1.0; 4]
-                };
+                let color = [1.0; 4];
                 let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color(color));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
-                if *burn_target {
-                    let mut flammable = l_flammable.insert(Flammable::new(FlammableParams {
-                        time_to_burn: 0.5,
-                        ..Default::default()
-                    }));
-                    flammable.connect(&mut coll);
-                }
+            }
+            //
+            // interactive stuff
+            //
+            Recipe::PlayerSpawnPoint { pose } => {
+                let mut pose = l_pose.insert(pose.0);
+                let mut marker = l_spawnpt.insert(PlayerSpawnPoint);
+                pose.connect(&mut marker);
             }
             Recipe::PhysicsObject { pose, collider } => {
                 let mut pose = l_pose.insert(pose.0);
@@ -154,18 +158,49 @@ impl Recipe {
                 pose.connect(&mut body);
                 body.connect(&mut coll);
             }
-            Recipe::FireFlower { pose } => {
+            Recipe::Weed {
+                pose,
+                collider,
+                is_static,
+            } => {
                 let mut pose = l_pose.insert(pose.0);
-                let mut coll = l_coll.insert(
-                    Collider::new_circle(0.5)
-                        .trigger()
-                        .with_layer(crate::collision_layers::INTERACTABLE),
-                );
-                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
-                let mut tag = l_interactable.insert(Interactable::FireFlower { taken: false });
+                let mut coll = collider.spawn(l_coll);
+                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.2, 0.1, 0.5, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
-                coll.connect(&mut tag);
+                if !is_static {
+                    let mut body = l_body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                    body.connect(&mut coll);
+                    pose.connect(&mut body);
+                }
+                let mut flammable = l_flammable.insert(Flammable::new(FlammableParams {
+                    time_to_destroy: Some(0.5),
+                    ..Default::default()
+                }));
+                flammable.connect(&mut coll);
+            }
+            Recipe::Flamevine {
+                pose,
+                collider,
+                is_static,
+            } => {
+                let mut pose = l_pose.insert(pose.0);
+                let mut coll = collider.spawn(l_coll);
+                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
+                pose.connect(&mut coll);
+                pose.connect(&mut mesh);
+                if !is_static {
+                    let mut body = l_body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                    body.connect(&mut coll);
+                    pose.connect(&mut body);
+                }
+                let eternal_fire = Flammable::new(FlammableParams {
+                    time_to_destroy: None,
+                    ..Default::default()
+                })
+                .ignited();
+                let mut flammable = l_flammable.insert(eternal_fire);
+                flammable.connect(&mut coll);
             }
         }
     }
@@ -213,39 +248,65 @@ const DEFAULT_PHYSICS_MATERIAL: Material = Material {
     restitution_coef: 0.0,
 };
 
-/// Non-polygon shapes produced by Tiled (with capsule being a custom extension)
+/// Non-polygon shapes produced by Tiled.
+/// Symmetric shapes are sized based on width.
 ///
-/// Needs to be used with `#[serde(flatten)]` in recipes
+/// Use with `#[serde(flatten)]` in recipes.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
-pub struct TiledSimpleShape {
+pub struct TiledCollider {
     width: f64,
     height: f64,
-    #[serde(default = "false_")]
-    ellipse: bool,
-    #[serde(default = "false_")]
-    capsule: bool,
+    #[serde(default)]
+    shape: TiledColliderShape,
 }
 
-impl TiledSimpleShape {
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+pub enum TiledColliderShape {
+    Circle,
+    Rect,
+    Capsule,
+    Hexagon,
+    Triangle,
+}
+
+impl Default for TiledColliderShape {
+    fn default() -> Self {
+        Self::Rect
+    }
+}
+
+impl TiledColliderShape {
+    pub fn realise(&self, width: f64, height: f64) -> Collider {
+        match self {
+            Self::Circle => Collider::new_circle(width),
+            Self::Rect => Collider::new_rect(width, height),
+            Self::Capsule => Collider::new_capsule(width, height / 2.0),
+            Self::Hexagon => Collider::new_hexagon(width / 2.0),
+            Self::Triangle => Collider::new_triangle(width / 2.0),
+        }
+    }
+}
+
+impl TiledCollider {
     pub fn spawn<'r, 'v: 'r>(
         &self,
         l_collider: &'r mut LayerViewMut<'v, Collider>,
     ) -> NodeRefMut<'r, Collider> {
         l_collider.insert(
-            if self.ellipse {
-                Collider::new_circle(self.width / 2.0)
-            } else if self.capsule {
-                Collider::new_capsule(self.width, self.height)
-            } else {
-                Collider::new_rect(self.width, self.height)
-            }
-            .with_material(DEFAULT_PHYSICS_MATERIAL),
+            self.shape
+                .realise(self.width, self.height)
+                .with_material(DEFAULT_PHYSICS_MATERIAL),
         )
     }
 }
 
-/// Default for bool fields that aren't present
+/// Defaults for bool fields that aren't present
 #[inline]
 fn false_() -> bool {
     false
+}
+
+#[inline]
+fn true_() -> bool {
+    true
 }

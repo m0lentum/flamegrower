@@ -65,12 +65,20 @@
                          "y":1.78571428571431
                         }, 
                         {
-                         "x":-795,
+                         "x":-810,
                          "y":1.78571428571431
                         }, 
                         {
-                         "x":-795,
-                         "y":-478.214285714286
+                         "x":-810,
+                         "y":-155.714285714286
+                        }, 
+                        {
+                         "x":-780,
+                         "y":-155.714285714286
+                        }, 
+                        {
+                         "x":-780,
+                         "y":-470.714285714286
                         }],
                  "properties":[
                         {
@@ -89,17 +97,11 @@
                  "height":90.8928571428571,
                  "id":20,
                  "name":"",
-                 "properties":[
-                        {
-                         "name":"burn_target",
-                         "type":"bool",
-                         "value":true
-                        }],
                  "rotation":0,
-                 "type":"StaticCollider",
+                 "type":"Weed",
                  "visible":true,
                  "width":18.9285714285714,
-                 "x":-202.5,
+                 "x":-210,
                  "y":112.5
                 }, 
                 {
@@ -173,34 +175,11 @@
                  "y":110.714285714286
                 }, 
                 {
-                 "height":0,
-                 "id":22,
-                 "name":"",
-                 "point":true,
-                 "rotation":0,
-                 "type":"FireFlower",
-                 "visible":true,
-                 "width":0,
-                 "x":-285,
-                 "y":193.214285714286
-                }, 
-                {
                  "height":15,
                  "id":23,
                  "name":"",
-                 "properties":[
-                        {
-                         "name":"burn_target",
-                         "type":"bool",
-                         "value":true
-                        }, 
-                        {
-                         "name":"capsule",
-                         "type":"bool",
-                         "value":false
-                        }],
                  "rotation":90,
-                 "type":"StaticCollider",
+                 "type":"Weed",
                  "visible":true,
                  "width":60,
                  "x":-247.5,
@@ -216,6 +195,29 @@
                  "width":37.5,
                  "x":255,
                  "y":45
+                }, 
+                {
+                 "height":22.5,
+                 "id":33,
+                 "name":"",
+                 "properties":[
+                        {
+                         "name":"is_static",
+                         "type":"bool",
+                         "value":true
+                        }, 
+                        {
+                         "name":"shape",
+                         "propertytype":"Shape",
+                         "type":"string",
+                         "value":"Rect"
+                        }],
+                 "rotation":90,
+                 "type":"Flamevine",
+                 "visible":true,
+                 "width":142.5,
+                 "x":-375,
+                 "y":60
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -224,14 +226,14 @@
          "y":0
         }],
  "nextlayerid":3,
- "nextobjectid":33,
+ "nextobjectid":34,
  "orientation":"orthogonal",
  "renderorder":"right-down",
- "tiledversion":"1.7.2",
+ "tiledversion":"1.8.4",
  "tileheight":30,
  "tilesets":[],
  "tilewidth":30,
  "type":"map",
- "version":"1.6",
+ "version":"1.8",
  "width":100
 }

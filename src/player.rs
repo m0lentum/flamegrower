@@ -2,7 +2,7 @@
 
 use starframe::{
     self as sf,
-    graph::{Graph, LayerView, NodeKey},
+    graph::{Graph, NodeKey},
     graphics as gx,
     input::{AxisQuery, ButtonQuery},
     math as m,
@@ -10,9 +10,6 @@ use starframe::{
 };
 
 use crate::fire::Flammable;
-
-pub mod interactables;
-pub use interactables::Interactable;
 
 // tuning constants
 
@@ -76,7 +73,6 @@ enum AimTargetValidity {
 pub struct PlayerController {
     body: Option<PlayerNodes>,
     attached_vine: Option<AttachedVine>,
-    has_fire: bool,
     input_mode: InputMode,
 }
 
@@ -85,7 +81,6 @@ impl PlayerController {
         Self {
             body: None,
             attached_vine: None,
-            has_fire: false,
             input_mode: InputMode::Move,
         }
     }
@@ -156,7 +151,16 @@ impl PlayerController {
         let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
         let mut l_rope = graph.get_layer_mut::<rope::Rope>();
         let mut l_flammable = graph.get_layer_mut::<Flammable>();
-        let mut l_interactable = graph.get_layer_mut::<Interactable>();
+
+        // check if attached vine still exists
+        // (it may burn even when holding on to it.
+        // TODO: once I have some proper level design in place, try only making it flammable when shooting
+        // out the other end of it, see if it feels better like that)
+        if let Some(attached) = self.attached_vine {
+            if l_body.get(attached.rope.last_particle).is_none() {
+                self.attached_vine = None;
+            }
+        }
 
         let player_body = l_body.get_mut(nodes.body)?.c;
         let player_pose = l_pose.get(nodes.pose)?.c;
@@ -178,10 +182,6 @@ impl PlayerController {
                 if contact.normal.y < lowest_cont_y && other_coll.c.is_solid() {
                     lowest_cont_y = contact.normal.y;
                     lowest_cont = Some(contact);
-                }
-
-                if let Some(interactable) = other_coll.get_neighbor_mut(&mut l_interactable) {
-                    interactable.c.on_contact(self);
                 }
             }
             lowest_cont
@@ -523,36 +523,12 @@ impl PlayerController {
                 //
                 // remove held vine
                 //
-                match (self.has_fire, self.attached_vine) {
-                    (true, Some(attached)) => {
-                        physics.remove_constraint(attached.player_constraint);
-                        self.attached_vine = None;
-                        self.has_fire = false;
-
-                        let particle = l_body
-                            .get(attached.rope.last_particle)
-                            .expect("Vine got destroyed in an unintended way");
-                        let flammable = particle
-                            .get_neighbor_mut(&mut l_flammable)
-                            .expect("Vine didn't have a flammable component");
-                        flammable.c.ignite();
-                    }
-                    (false, Some(attached)) => {
-                        self.attached_vine = None;
-                        // in the future, maybe "pull in" the vine particle by particle
-                        // for a nice animation. for now, just delete it
-                        drop((
-                            l_pose,
-                            l_collider,
-                            l_body,
-                            l_mesh,
-                            l_flammable,
-                            l_rope,
-                            l_interactable,
-                        ));
-                        graph.gather(attached.rope.rope_node).delete();
-                    }
-                    _ => {}
+                if let Some(attached) = self.attached_vine {
+                    self.attached_vine = None;
+                    // in the future, maybe "pull in" the vine particle by particle
+                    // for a nice animation. for now, just delete it
+                    drop((l_pose, l_collider, l_body, l_mesh, l_flammable, l_rope));
+                    graph.gather(attached.rope.rope_node).delete();
                 }
             }
         }

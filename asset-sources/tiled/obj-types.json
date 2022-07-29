@@ -1,14 +1,31 @@
 [
     {
-        "color": "#ff9fcfd3",
-        "name": "PhysicsObject",
+        "color": "#ffea9b12",
+        "name": "Flamevine",
         "properties": [
+            {
+                "name": "is_static",
+                "type": "bool",
+                "value": true
+            },
+            {
+                "name": "shape",
+                "propertytype": "Shape",
+                "type": "string",
+                "value": "Rect"
+            }
         ]
     },
     {
-        "color": "#ffd53535",
-        "name": "FireFlower",
+        "color": "#ff9fcfd3",
+        "name": "PhysicsObject",
         "properties": [
+            {
+                "name": "shape",
+                "propertytype": "Shape",
+                "type": "string",
+                "value": "Rect"
+            }
         ]
     },
     {
@@ -33,14 +50,27 @@
         "name": "StaticCollider",
         "properties": [
             {
-                "name": "burn_target",
+                "name": "shape",
+                "propertytype": "Shape",
+                "type": "string",
+                "value": "Rect"
+            }
+        ]
+    },
+    {
+        "color": "#ff8d24e2",
+        "name": "Weed",
+        "properties": [
+            {
+                "name": "is_static",
                 "type": "bool",
-                "value": false
+                "value": true
             },
             {
-                "name": "capsule",
-                "type": "bool",
-                "value": false
+                "name": "shape",
+                "propertytype": "Shape",
+                "type": "string",
+                "value": "Rect"
             }
         ]
     }

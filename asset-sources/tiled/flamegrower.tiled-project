@@ -6,5 +6,21 @@
     "folders": [
         "../scenes"
     ],
-    "objectTypesFile": "obj-types.json"
+    "objectTypesFile": "obj-types.json",
+    "propertyTypes": [
+        {
+            "id": 1,
+            "name": "Shape",
+            "storageType": "string",
+            "type": "enum",
+            "values": [
+                "Capsule",
+                "Rect",
+                "Circle",
+                "Hexagon",
+                "Triangle"
+            ],
+            "valuesAsFlags": false
+        }
+    ]
 }
