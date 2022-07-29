@@ -39,9 +39,12 @@ pub struct PlayerKeys {
     pub up: Key,
     pub down: Key,
     pub jump: Key,
-    pub aim_new: Key,
-    pub retract: Key,
-    pub aim_connect: Key,
+    /// Aim a vine by holding, shoot by releasing.
+    pub aim: Key,
+    /// Delay before going into aim mode.
+    /// A tap shorter than this shoots immediately if not already hanging on a vine,
+    /// otherwise retracts the current vine.
+    pub aim_delay: usize,
     pub respawn: Key,
 }
 

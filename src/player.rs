@@ -2,7 +2,7 @@
 
 use starframe::{
     self as sf,
-    graph::{Graph, NodeKey},
+    graph::{Graph, LayerView, NodeKey},
     graphics as gx,
     input::{AxisQuery, ButtonQuery},
     math as m,
@@ -25,13 +25,12 @@ const AIR_ACCEL: f64 = 0.2;
 const ROPE_SWINGING_ACCEL: f64 = 0.1;
 const JUMP_VEL: f64 = 6.0;
 const ROPE_START_OFFSET: f64 = 0.25;
-const RAY_MAX_DISTANCE: f64 = 8.0;
+const ROPE_MAX_LENGTH: f64 = 8.0;
 const SPHERECAST_RADIUS: f64 = 0.1;
 const ROPE_MIN_LENGTH: f64 = 1.0;
 const BOOST_ANGLE_LIMIT: f64 = 60.0;
 const BOOST_BONUS_SPEED: f64 = 0.1;
-
-// types
+const AIM_TIME_SCALE: f64 = 0.1;
 
 /// Marker component indicating a player spawn point, must be attached to a Pose.
 ///
@@ -40,23 +39,45 @@ const BOOST_BONUS_SPEED: f64 = 0.1;
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerSpawnPoint;
 
-/// Controller system (not a component).
-#[derive(Clone, Copy, Debug)]
-pub struct PlayerController {
-    body: Option<PlayerNodes>,
-    attached_vine: Option<AttachedVine>,
-    has_fire: bool,
-}
 #[derive(Clone, Copy, Debug)]
 struct PlayerNodes {
     pose: NodeKey<m::Pose>,
     body: NodeKey<phys::Body>,
     coll: NodeKey<phys::Collider>,
 }
+
 #[derive(Clone, Copy, Debug)]
 struct AttachedVine {
     rope: rope::RopeProperties,
     player_constraint: phys::ConstraintHandle,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum InputMode {
+    Move,
+    Aim(Option<AimTarget>),
+}
+
+#[derive(Clone, Copy, Debug)]
+struct AimTarget {
+    point: m::Vec2,
+    validity: AimTargetValidity,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum AimTargetValidity {
+    TooClose,
+    Valid,
+    TooFar,
+}
+
+/// Controller that holds most of the player's state and handles its actions.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerController {
+    body: Option<PlayerNodes>,
+    attached_vine: Option<AttachedVine>,
+    has_fire: bool,
+    input_mode: InputMode,
 }
 
 impl PlayerController {
@@ -65,6 +86,14 @@ impl PlayerController {
             body: None,
             attached_vine: None,
             has_fire: false,
+            input_mode: InputMode::Move,
+        }
+    }
+
+    pub fn time_scale(&self) -> Option<f64> {
+        match self.input_mode {
+            InputMode::Move => None,
+            InputMode::Aim { .. } => Some(AIM_TIME_SCALE),
         }
     }
 
@@ -171,8 +200,19 @@ impl PlayerController {
         };
 
         //
-        // move
+        // controls
         //
+
+        // set aim mode if holding aim button
+
+        let prev_input_mode = self.input_mode;
+        self.input_mode = if input.button(ButtonQuery::kb(keys.aim).held_min(keys.aim_delay)) {
+            InputMode::Aim(None)
+        } else {
+            InputMode::Move
+        };
+
+        // arrow keys, effect depending on mode
 
         let target_hdir = input.axis(AxisQuery {
             pos_btn: keys.right.into(),
@@ -183,159 +223,286 @@ impl PlayerController {
             neg_btn: keys.down.into(),
         });
 
-        match (groundedness, self.attached_vine) {
-            // special acceleration-based controls for in air with a rope
-            // for improved swing feel and control, hopefully
-            (Groundedness::Air, Some(_rope)) => {
-                if target_hdir != 0.0 || target_vdir != 0.0 {
-                    let target_dir = m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir));
-                    player_body.velocity.linear += ROPE_SWINGING_ACCEL * *target_dir;
+        match self.input_mode {
+            InputMode::Move => {
+                //
+                // move
+                //
+
+                match (groundedness, self.attached_vine) {
+                    // special acceleration-based controls for in air with a rope
+                    // for improved swing feel and control, hopefully
+                    (Groundedness::Air, Some(_rope)) => {
+                        if target_hdir != 0.0 || target_vdir != 0.0 {
+                            let target_dir =
+                                m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir));
+                            player_body.velocity.linear += ROPE_SWINGING_ACCEL * *target_dir;
+                        }
+                    }
+                    // normal controls for all other situations
+                    _ => {
+                        let ground_dir = match groundedness {
+                            // on ground, match ground slope
+                            Groundedness::EvenGround(normal) => m::left_normal(*normal),
+                            // in air or on a steep slope, normal horizontal air acceleration
+                            _ => m::Vec2::unit_x(),
+                        };
+
+                        let target_hvel = target_hdir * BASE_MOVE_SPEED;
+                        let accel_needed =
+                            target_hvel - player_body.velocity.linear.dot(ground_dir);
+                        let max_accel = match groundedness {
+                            Groundedness::EvenGround(_) => GROUND_ACCEL,
+                            // prevent movement up a steep slope
+                            Groundedness::SteepSlope(normal) if normal.x * target_hdir >= 0.0 => {
+                                0.0
+                            }
+                            _ => AIR_ACCEL,
+                        };
+                        let accel = if accel_needed.abs() <= max_accel {
+                            accel_needed
+                        } else {
+                            max_accel.copysign(accel_needed)
+                        };
+                        player_body.velocity.linear += accel * ground_dir;
+                    }
+                }
+
+                //
+                // jump
+                //
+
+                if input.button(keys.jump.into()) {
+                    if let Groundedness::EvenGround(normal) = groundedness {
+                        player_body.velocity.linear -= JUMP_VEL * *normal;
+                    }
+                } else if input.button(ButtonQuery::from(keys.jump).released())
+                    && player_body.velocity.linear.y > 0.0
+                {
+                    player_body.velocity.linear.y /= 2.0;
                 }
             }
-            // normal controls for all other situations
-            _ => {
-                let ground_dir = match groundedness {
-                    // on ground, match ground slope
-                    Groundedness::EvenGround(normal) => m::left_normal(*normal),
-                    // in air or on a steep slope, normal horizontal air acceleration
-                    _ => m::Vec2::unit_x(),
-                };
 
-                let target_hvel = target_hdir * BASE_MOVE_SPEED;
-                let accel_needed = target_hvel - player_body.velocity.linear.dot(ground_dir);
-                let max_accel = match groundedness {
-                    Groundedness::EvenGround(_) => GROUND_ACCEL,
-                    // prevent movement up a steep slope
-                    Groundedness::SteepSlope(normal) if normal.x * target_hdir >= 0.0 => 0.0,
-                    _ => AIR_ACCEL,
-                };
-                let accel = if accel_needed.abs() <= max_accel {
-                    accel_needed
+            //
+            // aim
+            //
+            InputMode::Aim(ref mut target) => {
+                if target_hdir == 0.0 && target_vdir == 0.0 {
+                    *target = None;
                 } else {
-                    max_accel.copysign(accel_needed)
+                    let ray_dir = m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir));
+                    let ray = phys::Ray {
+                        start: player_pose.translation,
+                        dir: ray_dir,
+                    };
+                    if let Some(hit) = physics.spherecast(
+                        SPHERECAST_RADIUS,
+                        ray,
+                        ROPE_MAX_LENGTH,
+                        (l_pose.subview(), l_collider.subview()),
+                    ) {
+                        *target = Some(AimTarget {
+                            point: ray.point_at_t(hit.t),
+                            validity: if hit.t < ROPE_MIN_LENGTH {
+                                AimTargetValidity::TooClose
+                            } else {
+                                AimTargetValidity::Valid
+                            },
+                        });
+                    } else {
+                        *target = Some(AimTarget {
+                            point: ray.point_at_t(ROPE_MAX_LENGTH),
+                            validity: AimTargetValidity::TooFar,
+                        });
+                    }
+                }
+            }
+        }
+
+        //
+        // shoot vines
+        //
+
+        // when releasing aim, shoot if:
+        // - a direction is held
+        // - if currently has no vine, shoot even if didn't hold until aim mode activated
+        // - if has a vine, shoot its other end only if aim mode was active
+        // otherwise, if it was a quick tap (no aim mode active), remove/ignite current vine
+
+        if input.button(ButtonQuery::kb(keys.aim).released()) {
+            let has_aim_dir = target_hdir != 0.0 || target_vdir != 0.0;
+            let no_vine_attached = self.attached_vine.is_none();
+            let was_aiming = matches!(prev_input_mode, InputMode::Aim { .. });
+            if has_aim_dir && (no_vine_attached || was_aiming) {
+                //
+                // shoot
+                //
+                let ray_dir = m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir));
+                let ray = phys::Ray {
+                    start: player_pose.translation,
+                    dir: ray_dir,
                 };
-                player_body.velocity.linear += accel * ground_dir;
-            }
-        }
+                if let Some(hit) = physics.spherecast(
+                    SPHERECAST_RADIUS,
+                    ray,
+                    ROPE_MAX_LENGTH,
+                    (l_pose.subview(), l_collider.subview()),
+                ) {
+                    match self.attached_vine {
+                        //
+                        // new vine
+                        //
+                        None => {
+                            if hit.t >= ROPE_MIN_LENGTH {
+                                let player_pos = player_pose.translation;
+                                // start at the other end to control angle constraint propagation
+                                let rope_start = ray.point_at_t(hit.t);
+                                let rope_end = ray.point_at_t(ROPE_START_OFFSET);
+                                let rope = rope::spawn_line(
+                                    rope::Rope {
+                                        bending_max_angle: m::Angle::Deg(75.0).rad(),
+                                        bending_compliance: 0.05,
+                                        ..Default::default()
+                                    },
+                                    rope_start,
+                                    rope_end,
+                                    (
+                                        l_body.subview_mut(),
+                                        l_pose.subview_mut(),
+                                        l_collider.subview_mut(),
+                                        l_rope.subview_mut(),
+                                        l_mesh.subview_mut(),
+                                    ),
+                                );
+                                // make it flammable
+                                let rope_node = l_rope.get(rope.rope_node).unwrap();
+                                let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
+                                while let Some(mut particle) = iter.next() {
+                                    let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
+                                    let mut flammable = l_flammable.insert(Flammable::default());
+                                    flammable.connect(&mut coll);
+                                    flammable.connect(&mut particle);
+                                }
 
-        //
-        // jump
-        //
+                                // constraint on the player
 
-        if input.button(keys.jump.into()) {
-            if let Groundedness::EvenGround(normal) = groundedness {
-                player_body.velocity.linear -= JUMP_VEL * *normal;
-            }
-        } else if input.button(ButtonQuery::from(keys.jump).released())
-            && player_body.velocity.linear.y > 0.0
-        {
-            player_body.velocity.linear.y /= 2.0;
-        }
+                                let player_constraint = physics.add_constraint(
+                                    phys::ConstraintBuilder::new(nodes.body)
+                                        .with_target(rope.last_particle)
+                                        .with_limit(phys::ConstraintLimit::Lt)
+                                        .build_distance((rope_end - player_pos).mag()),
+                                );
 
-        //
-        // spawn and delete ropes
-        //
+                                // constraint on the target
 
-        // if has fire and has vine, next action has to be burning the vine
-        if let (true, Some(attached)) = (self.has_fire, self.attached_vine) {
-            if input.button(keys.retract.into()) {
-                physics.remove_constraint(attached.player_constraint);
-                self.attached_vine = None;
-                self.has_fire = false;
+                                let coll_hit = l_collider.get_unchecked(hit.collider);
+                                match coll_hit.get_neighbor(&l_body.subview()) {
+                                    Some(body) => {
+                                        let b_pose = body
+                                            .get_neighbor(&l_pose.subview())
+                                            .map(|p| *p.c)
+                                            .unwrap_or_default();
+                                        let offset = b_pose.inversed() * rope_start;
+                                        physics.add_constraint(
+                                            phys::ConstraintBuilder::new(rope.first_particle)
+                                                .with_target(body.key())
+                                                .with_target_origin(offset)
+                                                .build_attachment(),
+                                        );
+                                    }
+                                    None => {
+                                        physics.add_constraint(
+                                            phys::ConstraintBuilder::new(rope.first_particle)
+                                                .with_target_origin(rope_start)
+                                                .build_attachment(),
+                                        );
+                                    }
+                                }
 
-                let particle = l_body.get(attached.rope.last_particle)?;
-                let flammable = particle.get_neighbor_mut(&mut l_flammable)?;
-                flammable.c.ignite();
-            }
-        }
-        // create new rope or attach existing to something
-        //
-        // TODO: this is a bit of a clumsy block of conditions,
-        // probably refactor this a bit when implementing aim on press and shoot on release
-        else if matches!(
-            (
-                self.attached_vine,
-                input.button(keys.aim_new.into()),
-                input.button(keys.aim_connect.into()),
-            ),
-            (None, true, _) | (Some(_), _, true)
-        ) {
-            let ray_dir = if target_vdir == 0.0 && target_hdir == 0.0 {
-                // shoot the rope upwards by default
-                // (TODO instead: aiming mode when holding aim,
-                // shoot in arrow key direction on release or cancel if no direction held)
-                m::Unit::unit_y()
-            } else {
-                m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir))
-            };
+                                self.attached_vine = Some(AttachedVine {
+                                    rope,
+                                    player_constraint,
+                                });
 
-            let ray = phys::Ray {
-                start: player_pose.translation,
-                dir: ray_dir,
-            };
-            if let Some(hit) = physics.spherecast(
-                SPHERECAST_RADIUS,
-                ray,
-                RAY_MAX_DISTANCE,
-                (l_pose.subview(), l_collider.subview()),
-            ) {
-                match self.attached_vine {
-                    //
-                    // new rope
-                    //
-                    None => {
-                        if hit.t >= ROPE_MIN_LENGTH {
-                            let player_pos = player_pose.translation;
-                            // start at the other end to control angle constraint propagation
-                            let rope_start = ray.point_at_t(hit.t);
-                            let rope_end = ray.point_at_t(ROPE_START_OFFSET);
-                            let rope = rope::spawn_line(
-                                rope::Rope {
-                                    bending_max_angle: m::Angle::Deg(75.0).rad(),
-                                    bending_compliance: 0.05,
-                                    ..Default::default()
-                                },
-                                rope_start,
-                                rope_end,
+                                // adjust player velocity towards the circle around the attachment point
+                                // for juicy swings
+
+                                // reborrow needed to allow subviews of the layer above
+                                let player_body = l_body.get_mut_unchecked(nodes.body).c;
+
+                                let vel_mag = player_body.velocity.linear.mag();
+                                let vel_dir =
+                                    m::Unit::new_unchecked(player_body.velocity.linear / vel_mag);
+
+                                let player_to_center = rope_start - player_pos;
+                                let tangent =
+                                    m::Unit::new_normalize(m::left_normal(player_to_center));
+                                let tan_dot_vel = tangent.dot(*vel_dir);
+                                let (tangent, tan_dot_vel) = if tan_dot_vel >= 0.0 {
+                                    (tangent, tan_dot_vel)
+                                } else {
+                                    (-tangent, -tan_dot_vel)
+                                };
+
+                                let dot_limit = m::Angle::Deg(BOOST_ANGLE_LIMIT).rad().cos();
+                                if tan_dot_vel > dot_limit {
+                                    player_body.velocity.linear =
+                                        (BOOST_BONUS_SPEED + vel_mag) * *tangent;
+                                }
+                            }
+                        }
+                        //
+                        // disconnect existing rope from self and connect to whatever was hit
+                        //
+                        Some(attached) => {
+                            physics.remove_constraint(attached.player_constraint);
+                            self.attached_vine = None;
+
+                            let curr_end_body = l_body.get(attached.rope.last_particle)?;
+                            let curr_end =
+                                curr_end_body.get_neighbor(&l_pose.subview())?.c.translation;
+                            let new_segment_end = ray.point_at_t(hit.t);
+                            let dir = m::Unit::new_normalize(new_segment_end - curr_end);
+
+                            let mut rope_node = l_rope.get_mut(attached.rope.rope_node)?;
+                            let dist = (new_segment_end - curr_end).mag();
+                            let new_particle_count = (dist / rope_node.c.spacing) as usize;
+
+                            let new_rope = rope::extend_line(
+                                &mut rope_node,
+                                dir,
+                                new_particle_count,
                                 (
                                     l_body.subview_mut(),
                                     l_pose.subview_mut(),
                                     l_collider.subview_mut(),
-                                    l_rope.subview_mut(),
                                     l_mesh.subview_mut(),
                                 ),
                             );
-                            // make it flammable
-                            let rope_node = l_rope.get(rope.rope_node).unwrap();
+                            // make the newly added part flammable
+                            let rope_node = l_rope.get(new_rope.rope_node).unwrap();
                             let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
                             while let Some(mut particle) = iter.next() {
-                                let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
-                                let mut flammable = l_flammable.insert(Flammable::default());
-                                flammable.connect(&mut coll);
-                                flammable.connect(&mut particle);
+                                if particle.get_neighbor_mut(&mut l_flammable).is_none() {
+                                    let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
+                                    let mut flammable = l_flammable.insert(Flammable::default());
+                                    flammable.connect(&mut coll);
+                                    flammable.connect(&mut particle);
+                                }
                             }
 
-                            // constraint on the player
-
-                            let player_constraint = physics.add_constraint(
-                                phys::ConstraintBuilder::new(nodes.body)
-                                    .with_target(rope.last_particle)
-                                    .with_limit(phys::ConstraintLimit::Lt)
-                                    .build_distance((rope_end - player_pos).mag()),
-                            );
-
-                            // constraint on the target
+                            // constraint on the new target
 
                             let coll_hit = l_collider.get_unchecked(hit.collider);
                             match coll_hit.get_neighbor(&l_body.subview()) {
                                 Some(body) => {
-                                    let b_pose = body
-                                        .get_neighbor(&l_pose.subview())
-                                        .map(|p| *p.c)
-                                        .unwrap_or_default();
-                                    let offset = b_pose.inversed() * rope_start;
+                                    let offset = new_segment_end
+                                        - body
+                                            .get_neighbor(&l_pose.subview())
+                                            .map(|p| p.c.translation)
+                                            .unwrap_or_default();
                                     physics.add_constraint(
-                                        phys::ConstraintBuilder::new(rope.first_particle)
+                                        phys::ConstraintBuilder::new(new_rope.last_particle)
                                             .with_target(body.key())
                                             .with_target_origin(offset)
                                             .build_attachment(),
@@ -343,129 +510,51 @@ impl PlayerController {
                                 }
                                 None => {
                                     physics.add_constraint(
-                                        phys::ConstraintBuilder::new(rope.first_particle)
-                                            .with_target_origin(rope_start)
+                                        phys::ConstraintBuilder::new(new_rope.last_particle)
+                                            .with_target_origin(new_segment_end)
                                             .build_attachment(),
                                     );
                                 }
                             }
-
-                            self.attached_vine = Some(AttachedVine {
-                                rope,
-                                player_constraint,
-                            });
-
-                            // adjust player velocity towards the circle around the attachment point
-                            // for juicy swings
-
-                            // reborrow needed to allow subviews of the layer above
-                            let player_body = l_body.get_mut_unchecked(nodes.body).c;
-
-                            let vel_mag = player_body.velocity.linear.mag();
-                            let vel_dir =
-                                m::Unit::new_unchecked(player_body.velocity.linear / vel_mag);
-
-                            let player_to_center = rope_start - player_pos;
-                            let tangent = m::Unit::new_normalize(m::left_normal(player_to_center));
-                            let tan_dot_vel = tangent.dot(*vel_dir);
-                            let (tangent, tan_dot_vel) = if tan_dot_vel >= 0.0 {
-                                (tangent, tan_dot_vel)
-                            } else {
-                                (-tangent, -tan_dot_vel)
-                            };
-
-                            let dot_limit = m::Angle::Deg(BOOST_ANGLE_LIMIT).rad().cos();
-                            if tan_dot_vel > dot_limit {
-                                player_body.velocity.linear =
-                                    (BOOST_BONUS_SPEED + vel_mag) * *tangent;
-                            }
-                        }
-                    }
-                    //
-                    // disconnect existing rope from self and connect to whatever was hit
-                    //
-                    Some(attached) => {
-                        physics.remove_constraint(attached.player_constraint);
-                        self.attached_vine = None;
-
-                        let curr_end_body = l_body.get(attached.rope.last_particle)?;
-                        let curr_end = curr_end_body.get_neighbor(&l_pose.subview())?.c.translation;
-                        let new_segment_end = ray.point_at_t(hit.t);
-                        let dir = m::Unit::new_normalize(new_segment_end - curr_end);
-
-                        let mut rope_node = l_rope.get_mut(attached.rope.rope_node)?;
-                        let dist = (new_segment_end - curr_end).mag();
-                        let new_particle_count = (dist / rope_node.c.spacing) as usize;
-
-                        let new_rope = rope::extend_line(
-                            &mut rope_node,
-                            dir,
-                            new_particle_count,
-                            (
-                                l_body.subview_mut(),
-                                l_pose.subview_mut(),
-                                l_collider.subview_mut(),
-                                l_mesh.subview_mut(),
-                            ),
-                        );
-                        // make the newly added part flammable
-                        let rope_node = l_rope.get(new_rope.rope_node).unwrap();
-                        let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
-                        while let Some(mut particle) = iter.next() {
-                            if particle.get_neighbor_mut(&mut l_flammable).is_none() {
-                                let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
-                                let mut flammable = l_flammable.insert(Flammable::default());
-                                flammable.connect(&mut coll);
-                                flammable.connect(&mut particle);
-                            }
-                        }
-
-                        // constraint on the new target
-
-                        let coll_hit = l_collider.get_unchecked(hit.collider);
-                        match coll_hit.get_neighbor(&l_body.subview()) {
-                            Some(body) => {
-                                let offset = new_segment_end
-                                    - body
-                                        .get_neighbor(&l_pose.subview())
-                                        .map(|p| p.c.translation)
-                                        .unwrap_or_default();
-                                physics.add_constraint(
-                                    phys::ConstraintBuilder::new(new_rope.last_particle)
-                                        .with_target(body.key())
-                                        .with_target_origin(offset)
-                                        .build_attachment(),
-                                );
-                            }
-                            None => {
-                                physics.add_constraint(
-                                    phys::ConstraintBuilder::new(new_rope.last_particle)
-                                        .with_target_origin(new_segment_end)
-                                        .build_attachment(),
-                                );
-                            }
                         }
                     }
                 }
+            } else if !was_aiming {
+                //
+                // remove held vine
+                //
+                match (self.has_fire, self.attached_vine) {
+                    (true, Some(attached)) => {
+                        physics.remove_constraint(attached.player_constraint);
+                        self.attached_vine = None;
+                        self.has_fire = false;
+
+                        let particle = l_body
+                            .get(attached.rope.last_particle)
+                            .expect("Vine got destroyed in an unintended way");
+                        let flammable = particle
+                            .get_neighbor_mut(&mut l_flammable)
+                            .expect("Vine didn't have a flammable component");
+                        flammable.c.ignite();
+                    }
+                    (false, Some(attached)) => {
+                        self.attached_vine = None;
+                        // in the future, maybe "pull in" the vine particle by particle
+                        // for a nice animation. for now, just delete it
+                        drop((
+                            l_pose,
+                            l_collider,
+                            l_body,
+                            l_mesh,
+                            l_flammable,
+                            l_rope,
+                            l_interactable,
+                        ));
+                        graph.gather(attached.rope.rope_node).delete();
+                    }
+                    _ => {}
+                }
             }
-        }
-        // remove rope without igniting it (self.has_fire == false)
-        else if let (Some(attached), true) =
-            (self.attached_vine, input.button(keys.retract.into()))
-        {
-            self.attached_vine = None;
-            // in the future, maybe "pull in" the vine particle by particle
-            // for a nice animation. for now, just delete it
-            drop((
-                l_pose,
-                l_collider,
-                l_body,
-                l_mesh,
-                l_flammable,
-                l_rope,
-                l_interactable,
-            ));
-            graph.gather(attached.rope.rope_node).delete();
         }
 
         Some(())

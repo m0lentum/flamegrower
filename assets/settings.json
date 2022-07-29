@@ -11,9 +11,8 @@
       "up": "Up",
       "down": "Down",
       "jump": "LShift",
-      "aim_new": "Z",
-      "retract": "Z",
-      "aim_connect": "X",
+      "aim": "Z",
+      "aim_delay": 10,
       "respawn": "R"
     },
     "debug": {

@@ -159,7 +159,7 @@ impl game::GameState for State {
         Self::init(renderer)
     }
 
-    fn tick(&mut self, dt: f64, game: &Game) -> Option<()> {
+    fn tick(&mut self, game: &Game) -> Option<()> {
         let settings = self.settings.read();
         let keys = settings.keymap;
 
@@ -202,7 +202,12 @@ impl game::GameState for State {
                 }
 
                 let grav = phys::forcefield::Gravity(m::Vec2::new(0.0, -9.81));
-                self.physics.tick(dt, &grav, self.graph.get_layer_bundle());
+                self.physics.tick(
+                    game.dt_fixed,
+                    self.player.time_scale(),
+                    &grav,
+                    self.graph.get_layer_bundle(),
+                );
 
                 self.player.tick(
                     &game.input,
@@ -211,7 +216,7 @@ impl game::GameState for State {
                     &mut self.graph,
                 );
 
-                fire::tick(dt, &mut self.physics, &mut self.graph);
+                fire::tick(game.dt_fixed, &mut self.physics, &mut self.graph);
 
                 Some(())
             }
