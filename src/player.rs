@@ -76,6 +76,27 @@ pub struct PlayerController {
     input_mode: InputMode,
 }
 
+sf::graph::named_layer_bundle! {
+    pub struct SpawnLayers<'a> {
+        pose: w m::Pose,
+        collider: w phys::Collider,
+        body: w phys::Body,
+        mesh: w gx::Mesh,
+        spawn: r PlayerSpawnPoint,
+    }
+}
+
+sf::graph::named_layer_bundle! {
+    pub struct TickLayers<'a> {
+        pose: w m::Pose,
+        collider: w phys::Collider,
+        body: w phys::Body,
+        mesh: w gx::Mesh,
+        rope: w rope::Rope,
+        flammable: w Flammable,
+    }
+}
+
 impl PlayerController {
     pub fn new() -> Self {
         Self {
@@ -97,23 +118,22 @@ impl PlayerController {
             graph.gather(nodes.body).delete();
         }
 
-        let mut l_pose = graph.get_layer_mut::<m::Pose>();
-        let mut l_collider = graph.get_layer_mut::<phys::Collider>();
-        let mut l_body = graph.get_layer_mut::<phys::Body>();
-        let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
-        let l_spawn = graph.get_layer::<PlayerSpawnPoint>();
+        let mut l: SpawnLayers = graph.get_layer_bundle();
 
-        let spawn_point: m::Vec2 = match l_spawn
+        let spawn_point: m::Vec2 = match l
+            .spawn
             .iter()
             .next()
-            .and_then(|s| s.get_neighbor_mut(&mut l_pose))
+            .and_then(|s| s.get_neighbor_mut(&mut l.pose))
         {
             Some(spawn) => spawn.c.translation,
             None => m::Vec2::zero(),
         };
 
-        let mut pose = l_pose.insert(m::Pose::new(spawn_point, m::Angle::Deg(90.0).into()));
-        let mut coll = l_collider.insert(
+        let mut pose = l
+            .pose
+            .insert(m::Pose::new(spawn_point, m::Angle::Deg(90.0).into()));
+        let mut coll = l.collider.insert(
             phys::Collider::new_capsule(COLL_LENGTH, COLL_R)
                 .with_material(phys::Material {
                     static_friction_coef: None,
@@ -122,8 +142,10 @@ impl PlayerController {
                 })
                 .with_layer(super::collision_layers::PLAYER),
         );
-        let mut mesh = l_mesh.insert(gx::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
-        let mut body = l_body.insert(phys::Body::new_particle(1.0));
+        let mut mesh = l
+            .mesh
+            .insert(gx::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
+        let mut body = l.body.insert(phys::Body::new_particle(1.0));
         pose.connect(&mut body);
         pose.connect(&mut coll);
         body.connect(&mut coll);
@@ -145,25 +167,20 @@ impl PlayerController {
     ) -> Option<()> {
         let nodes = self.body?;
 
-        let mut l_pose = graph.get_layer_mut::<m::Pose>();
-        let mut l_collider = graph.get_layer_mut::<phys::Collider>();
-        let mut l_body = graph.get_layer_mut::<phys::Body>();
-        let mut l_mesh = graph.get_layer_mut::<gx::Mesh>();
-        let mut l_rope = graph.get_layer_mut::<rope::Rope>();
-        let mut l_flammable = graph.get_layer_mut::<Flammable>();
+        let mut l: TickLayers = graph.get_layer_bundle();
 
         // check if attached vine still exists
         // (it may burn even when holding on to it.
         // TODO: once I have some proper level design in place, try only making it flammable when shooting
         // out the other end of it, see if it feels better like that)
         if let Some(attached) = self.attached_vine {
-            if l_body.get(attached.rope.last_particle).is_none() {
+            if l.body.get(attached.rope.last_particle).is_none() {
                 self.attached_vine = None;
             }
         }
 
-        let player_body = l_body.get_mut(nodes.body)?.c;
-        let player_pose = l_pose.get(nodes.pose)?.c;
+        let player_body = l.body.get_mut(nodes.body)?.c;
+        let player_pose = l.pose.get(nodes.pose)?.c;
 
         //
         // handle contacts (groundedness, interactables)
@@ -175,7 +192,7 @@ impl PlayerController {
             let mut lowest_cont_y = f64::MAX;
             let mut lowest_cont = None;
             for contact in physics.contacts_for_collider(nodes.coll) {
-                let other_coll = match l_collider.get(contact.colliders[1]) {
+                let other_coll = match l.collider.get(contact.colliders[1]) {
                     Some(coll) => coll,
                     None => continue,
                 };
@@ -299,7 +316,7 @@ impl PlayerController {
                         SPHERECAST_RADIUS,
                         ray,
                         ROPE_MAX_LENGTH,
-                        (l_pose.subview(), l_collider.subview()),
+                        (l.pose.subview(), l.collider.subview()),
                     ) {
                         *target = Some(AimTarget {
                             point: ray.point_at_t(hit.t),
@@ -346,7 +363,7 @@ impl PlayerController {
                     SPHERECAST_RADIUS,
                     ray,
                     ROPE_MAX_LENGTH,
-                    (l_pose.subview(), l_collider.subview()),
+                    (l.pose.subview(), l.collider.subview()),
                 ) {
                     match self.attached_vine {
                         //
@@ -367,19 +384,19 @@ impl PlayerController {
                                     rope_start,
                                     rope_end,
                                     (
-                                        l_body.subview_mut(),
-                                        l_pose.subview_mut(),
-                                        l_collider.subview_mut(),
-                                        l_rope.subview_mut(),
-                                        l_mesh.subview_mut(),
+                                        l.body.subview_mut(),
+                                        l.pose.subview_mut(),
+                                        l.collider.subview_mut(),
+                                        l.rope.subview_mut(),
+                                        l.mesh.subview_mut(),
                                     ),
                                 );
                                 // make it flammable
-                                let rope_node = l_rope.get(rope.rope_node).unwrap();
-                                let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
+                                let rope_node = l.rope.get(rope.rope_node).unwrap();
+                                let mut iter = rope_node.get_all_neighbors_mut(&mut l.body);
                                 while let Some(mut particle) = iter.next() {
-                                    let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
-                                    let mut flammable = l_flammable.insert(Flammable::default());
+                                    let mut coll = particle.get_neighbor_mut(&mut l.collider)?;
+                                    let mut flammable = l.flammable.insert(Flammable::default());
                                     flammable.connect(&mut coll);
                                     flammable.connect(&mut particle);
                                 }
@@ -395,11 +412,11 @@ impl PlayerController {
 
                                 // constraint on the target
 
-                                let coll_hit = l_collider.get_unchecked(hit.collider);
-                                match coll_hit.get_neighbor(&l_body.subview()) {
+                                let coll_hit = l.collider.get_unchecked(hit.collider);
+                                match coll_hit.get_neighbor(&l.body.subview()) {
                                     Some(body) => {
                                         let b_pose = body
-                                            .get_neighbor(&l_pose.subview())
+                                            .get_neighbor(&l.pose.subview())
                                             .map(|p| *p.c)
                                             .unwrap_or_default();
                                         let offset = b_pose.inversed() * rope_start;
@@ -428,7 +445,7 @@ impl PlayerController {
                                 // for juicy swings
 
                                 // reborrow needed to allow subviews of the layer above
-                                let player_body = l_body.get_mut_unchecked(nodes.body).c;
+                                let player_body = l.body.get_mut_unchecked(nodes.body).c;
 
                                 let vel_mag = player_body.velocity.linear.mag();
                                 let vel_dir =
@@ -458,13 +475,13 @@ impl PlayerController {
                             physics.remove_constraint(attached.player_constraint);
                             self.attached_vine = None;
 
-                            let curr_end_body = l_body.get(attached.rope.last_particle)?;
+                            let curr_end_body = l.body.get(attached.rope.last_particle)?;
                             let curr_end =
-                                curr_end_body.get_neighbor(&l_pose.subview())?.c.translation;
+                                curr_end_body.get_neighbor(&l.pose.subview())?.c.translation;
                             let new_segment_end = ray.point_at_t(hit.t);
                             let dir = m::Unit::new_normalize(new_segment_end - curr_end);
 
-                            let mut rope_node = l_rope.get_mut(attached.rope.rope_node)?;
+                            let mut rope_node = l.rope.get_mut(attached.rope.rope_node)?;
                             let dist = (new_segment_end - curr_end).mag();
                             let new_particle_count = (dist / rope_node.c.spacing) as usize;
 
@@ -473,19 +490,19 @@ impl PlayerController {
                                 dir,
                                 new_particle_count,
                                 (
-                                    l_body.subview_mut(),
-                                    l_pose.subview_mut(),
-                                    l_collider.subview_mut(),
-                                    l_mesh.subview_mut(),
+                                    l.body.subview_mut(),
+                                    l.pose.subview_mut(),
+                                    l.collider.subview_mut(),
+                                    l.mesh.subview_mut(),
                                 ),
                             );
                             // make the newly added part flammable
-                            let rope_node = l_rope.get(new_rope.rope_node).unwrap();
-                            let mut iter = rope_node.get_all_neighbors_mut(&mut l_body);
+                            let rope_node = l.rope.get(new_rope.rope_node).unwrap();
+                            let mut iter = rope_node.get_all_neighbors_mut(&mut l.body);
                             while let Some(mut particle) = iter.next() {
-                                if particle.get_neighbor_mut(&mut l_flammable).is_none() {
-                                    let mut coll = particle.get_neighbor_mut(&mut l_collider)?;
-                                    let mut flammable = l_flammable.insert(Flammable::default());
+                                if particle.get_neighbor_mut(&mut l.flammable).is_none() {
+                                    let mut coll = particle.get_neighbor_mut(&mut l.collider)?;
+                                    let mut flammable = l.flammable.insert(Flammable::default());
                                     flammable.connect(&mut coll);
                                     flammable.connect(&mut particle);
                                 }
@@ -493,12 +510,12 @@ impl PlayerController {
 
                             // constraint on the new target
 
-                            let coll_hit = l_collider.get_unchecked(hit.collider);
-                            match coll_hit.get_neighbor(&l_body.subview()) {
+                            let coll_hit = l.collider.get_unchecked(hit.collider);
+                            match coll_hit.get_neighbor(&l.body.subview()) {
                                 Some(body) => {
                                     let offset = new_segment_end
                                         - body
-                                            .get_neighbor(&l_pose.subview())
+                                            .get_neighbor(&l.pose.subview())
                                             .map(|p| p.c.translation)
                                             .unwrap_or_default();
                                     physics.add_constraint(
@@ -527,7 +544,7 @@ impl PlayerController {
                     self.attached_vine = None;
                     // in the future, maybe "pull in" the vine particle by particle
                     // for a nice animation. for now, just delete it
-                    drop((l_pose, l_collider, l_body, l_mesh, l_flammable, l_rope));
+                    drop(l);
                     graph.gather(attached.rope.rope_node).delete();
                 }
             }

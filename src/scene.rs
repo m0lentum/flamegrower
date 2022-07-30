@@ -1,4 +1,5 @@
 use starframe::{
+    self as sf,
     graph::{Graph, LayerViewMut, NodeRefMut},
     graphics::Mesh,
     math as m,
@@ -83,29 +84,23 @@ pub enum Recipe {
     },
 }
 
+sf::graph::named_layer_bundle! {
+    pub struct SpawnLayers<'a> {
+        pose: w m::Pose,
+        coll: w Collider,
+        body: w Body,
+        mesh: w Mesh,
+        flammable: w Flammable,
+        spawnpt: w PlayerSpawnPoint,
+    }
+}
+
 impl Recipe {
     #[allow(clippy::type_complexity)]
     pub fn spawn(
         &self,
         _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
-
-        // more verbose than usual - taking layer bundle by reference here
-        // to avoid some boilerplate in `Scene::instantiate`
-        (
-            ref mut l_pose,
-            ref mut l_coll,
-            ref mut l_body,
-            ref mut l_mesh,
-            ref mut l_flammable,
-            ref mut l_spawnpt,
-        ): &mut (
-            LayerViewMut<m::Pose>,
-            LayerViewMut<Collider>,
-            LayerViewMut<Body>,
-            LayerViewMut<Mesh>,
-            LayerViewMut<Flammable>,
-            LayerViewMut<PlayerSpawnPoint>,
-        ),
+        l: &mut SpawnLayers,
     ) {
         match self {
             //
@@ -125,18 +120,20 @@ impl Recipe {
                     let len = dist.mag();
                     let angle = f64::atan2(dist.y, dist.x);
 
-                    let mut pose = l_pose.insert(m::Pose::new(mid, m::Angle::Rad(angle).into()));
-                    let mut coll = l_coll.insert(Collider::new_capsule(len, r));
-                    let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([1.0; 4]));
+                    let mut pose = l
+                        .pose
+                        .insert(m::Pose::new(mid, m::Angle::Rad(angle).into()));
+                    let mut coll = l.coll.insert(Collider::new_capsule(len, r));
+                    let mut mesh = l.mesh.insert(Mesh::from(*coll.c).with_color([1.0; 4]));
                     pose.connect(&mut coll);
                     pose.connect(&mut mesh);
                 }
             }
             Recipe::StaticCollider { pose, collider } => {
-                let mut pose = l_pose.insert(pose.0);
-                let mut coll = collider.spawn(l_coll);
+                let mut pose = l.pose.insert(pose.0);
+                let mut coll = collider.spawn(&mut l.coll);
                 let color = [1.0; 4];
-                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color(color));
+                let mut mesh = l.mesh.insert(Mesh::from(*coll.c).with_color(color));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
             }
@@ -144,15 +141,17 @@ impl Recipe {
             // interactive stuff
             //
             Recipe::PlayerSpawnPoint { pose } => {
-                let mut pose = l_pose.insert(pose.0);
-                let mut marker = l_spawnpt.insert(PlayerSpawnPoint);
+                let mut pose = l.pose.insert(pose.0);
+                let mut marker = l.spawnpt.insert(PlayerSpawnPoint);
                 pose.connect(&mut marker);
             }
             Recipe::PhysicsObject { pose, collider } => {
-                let mut pose = l_pose.insert(pose.0);
-                let mut coll = collider.spawn(l_coll);
-                let mut body = l_body.insert(Body::new_dynamic(coll.c.info(), 1.0));
-                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
+                let mut pose = l.pose.insert(pose.0);
+                let mut coll = collider.spawn(&mut l.coll);
+                let mut body = l.body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                let mut mesh = l
+                    .mesh
+                    .insert(Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 pose.connect(&mut body);
@@ -163,17 +162,19 @@ impl Recipe {
                 collider,
                 is_static,
             } => {
-                let mut pose = l_pose.insert(pose.0);
-                let mut coll = collider.spawn(l_coll);
-                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.2, 0.1, 0.5, 1.0]));
+                let mut pose = l.pose.insert(pose.0);
+                let mut coll = collider.spawn(&mut l.coll);
+                let mut mesh = l
+                    .mesh
+                    .insert(Mesh::from(*coll.c).with_color([0.2, 0.1, 0.5, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
-                    let mut body = l_body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                    let mut body = l.body.insert(Body::new_dynamic(coll.c.info(), 1.0));
                     body.connect(&mut coll);
                     pose.connect(&mut body);
                 }
-                let mut flammable = l_flammable.insert(Flammable::new(FlammableParams {
+                let mut flammable = l.flammable.insert(Flammable::new(FlammableParams {
                     time_to_destroy: Some(0.5),
                     ..Default::default()
                 }));
@@ -184,13 +185,15 @@ impl Recipe {
                 collider,
                 is_static,
             } => {
-                let mut pose = l_pose.insert(pose.0);
-                let mut coll = collider.spawn(l_coll);
-                let mut mesh = l_mesh.insert(Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
+                let mut pose = l.pose.insert(pose.0);
+                let mut coll = collider.spawn(&mut l.coll);
+                let mut mesh = l
+                    .mesh
+                    .insert(Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
-                    let mut body = l_body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                    let mut body = l.body.insert(Body::new_dynamic(coll.c.info(), 1.0));
                     body.connect(&mut coll);
                     pose.connect(&mut body);
                 }
@@ -199,7 +202,7 @@ impl Recipe {
                     ..Default::default()
                 })
                 .ignited();
-                let mut flammable = l_flammable.insert(eternal_fire);
+                let mut flammable = l.flammable.insert(eternal_fire);
                 flammable.connect(&mut coll);
             }
         }
