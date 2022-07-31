@@ -13,14 +13,15 @@ use crate::fire::Flammable;
 
 // tuning constants
 
-const COLL_R: f64 = 0.1;
-const COLL_LENGTH: f64 = 0.2;
+const COLL_R: f64 = 0.2;
+const COLL_LENGTH: f64 = 0.4;
+const PLAYER_MASS: f64 = 1.0;
 const GROUNDED_ANGLE_LIMIT: f64 = 60.0;
-const BASE_MOVE_SPEED: f64 = 5.0;
+const BASE_MOVE_SPEED: f64 = 6.0;
 const GROUND_ACCEL: f64 = 1.0;
-const AIR_ACCEL: f64 = 0.2;
+const AIR_ACCEL: f64 = 0.3;
 const ROPE_SWINGING_ACCEL: f64 = 0.1;
-const JUMP_VEL: f64 = 6.0;
+const JUMP_VEL: f64 = 8.0;
 const ROPE_START_OFFSET: f64 = 0.25;
 const ROPE_MAX_LENGTH: f64 = 8.0;
 const SPHERECAST_RADIUS: f64 = 0.1;
@@ -145,7 +146,7 @@ impl PlayerController {
         let mut mesh = l
             .mesh
             .insert(gx::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
-        let mut body = l.body.insert(phys::Body::new_particle(1.0));
+        let mut body = l.body.insert(phys::Body::new_particle(PLAYER_MASS));
         pose.connect(&mut body);
         pose.connect(&mut coll);
         body.connect(&mut coll);

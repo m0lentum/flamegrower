@@ -13,6 +13,16 @@ use crate::{
     player::PlayerSpawnPoint,
 };
 
+/// Default physics material should allow player to push boxes
+/// but also rotate large ones by grabbing a high corner and pulling down
+const DEFAULT_PHYSICS_MATERIAL: Material = Material {
+    // big TODO: fix static friction being stronger in one direction
+    // probably best done with a block solver
+    static_friction_coef: None,
+    dynamic_friction_coef: Some(0.2),
+    restitution_coef: 0.0,
+};
+
 /// A scene created with the Tiled editor.
 ///
 /// Raw tiled scenes need to be run through `export.jq` to parse correctly.
@@ -96,7 +106,6 @@ sf::graph::named_layer_bundle! {
 }
 
 impl Recipe {
-    #[allow(clippy::type_complexity)]
     pub fn spawn(
         &self,
         _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
@@ -166,7 +175,7 @@ impl Recipe {
                 let mut coll = collider.spawn(&mut l.coll);
                 let mut mesh = l
                     .mesh
-                    .insert(Mesh::from(*coll.c).with_color([0.2, 0.1, 0.5, 1.0]));
+                    .insert(Mesh::from(*coll.c).with_color([0.05, 0.02, 0.1, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
@@ -241,16 +250,6 @@ impl From<TiledPose> for m::Pose {
     }
 }
 
-/// Default physics material should allow player to push boxes
-/// but also rotate large ones by grabbing a high corner and pulling down
-const DEFAULT_PHYSICS_MATERIAL: Material = Material {
-    // big TODO: fix static friction being stronger in one direction
-    // probably best done with a block solver
-    static_friction_coef: None,
-    dynamic_friction_coef: Some(0.2),
-    restitution_coef: 0.0,
-};
-
 /// Non-polygon shapes produced by Tiled.
 /// Symmetric shapes are sized based on width.
 ///
@@ -281,7 +280,7 @@ impl Default for TiledColliderShape {
 impl TiledColliderShape {
     pub fn realise(&self, width: f64, height: f64) -> Collider {
         match self {
-            Self::Circle => Collider::new_circle(width),
+            Self::Circle => Collider::new_circle(width / 2.0),
             Self::Rect => Collider::new_rect(width, height),
             Self::Capsule => Collider::new_capsule(width, height / 2.0),
             Self::Hexagon => Collider::new_hexagon(width / 2.0),
