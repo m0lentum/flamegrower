@@ -1,5 +1,5 @@
 use assets_manager::{loader, Asset};
-use starframe::input::Key;
+use starframe::input::{Key, MouseButton};
 
 #[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Settings {
@@ -40,11 +40,13 @@ pub struct PlayerKeys {
     pub down: Key,
     pub jump: Key,
     /// Aim a vine by holding, shoot by releasing.
-    pub aim: Key,
-    /// Delay before going into aim mode.
-    /// A tap shorter than this shoots immediately if not already hanging on a vine,
-    /// otherwise retracts the current vine.
+    pub shoot: MouseButton,
+    /// Delay before slowing down time for aiming.
     pub aim_delay: usize,
+    /// Cancel out of aim mode (holding down LMB by default) without shooting.
+    pub cancel_aim: MouseButton,
+    /// Pull back / destroy the vine currently held.
+    pub retract_vine: MouseButton,
     pub respawn: Key,
 }
 

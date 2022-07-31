@@ -2,10 +2,8 @@ use lazy_static::lazy_static;
 use starframe::{
     game::{self, Game, GameParams},
     graph::{new_graph, Graph},
-    graphics as gx,
-    input::MouseButton,
-    math::{self as m, uv},
-    physics as phys,
+    graphics::{self as gx, camera::Camera},
+    math as m, physics as phys,
 };
 
 use assets_manager::{AssetCache, Handle};
@@ -145,7 +143,7 @@ impl State {
     fn instantiate_scene(&mut self) {
         self.scene
             .read()
-            .instantiate(&mut self.physics, &self.graph);
+            .instantiate(&mut self.camera, &mut self.physics, &self.graph);
     }
 }
 
@@ -169,13 +167,6 @@ impl game::GameState for State {
 
         #[cfg(debug_assertions)]
         ASSETS.hot_reload();
-
-        // mouse camera
-        self.camera
-            .update(&game.input, game.renderer.window_size().into());
-        if game.input.button(MouseButton::Middle.into()) {
-            self.camera.pose = uv::DSimilarity2::identity();
-        }
 
         // reload scene
         if game.input.button(keys.menus.reload.into()) {
@@ -210,6 +201,10 @@ impl game::GameState for State {
 
                 self.player.tick(
                     &game.input,
+                    self.camera.point_screen_to_world(
+                        game.renderer.window_size().into(),
+                        game.input.cursor_position().into(),
+                    ),
                     &keys.player,
                     &mut self.physics,
                     &mut self.graph,

@@ -244,7 +244,7 @@
                  "visible":true,
                  "width":0,
                  "x":360,
-                 "y":-90
+                 "y":-60
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -255,6 +255,12 @@
  "nextlayerid":3,
  "nextobjectid":50,
  "orientation":"orthogonal",
+ "properties":[
+        {
+         "name":"initial_camera_zoom",
+         "type":"float",
+         "value":1.5
+        }],
  "renderorder":"right-down",
  "tiledversion":"1.8.4",
  "tileheight":30,

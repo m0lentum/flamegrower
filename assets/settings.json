@@ -2,18 +2,20 @@
   "keymap": {
     "menus": {
       "exit": "Escape",
-      "reload": "Return",
-      "pause": "P"
+      "reload": "P",
+      "pause": "G"
     },
     "player": {
-      "right": "Right",
-      "left": "Left",
-      "up": "Up",
-      "down": "Down",
-      "jump": "LShift",
-      "aim": "Z",
-      "aim_delay": 10,
-      "respawn": "R"
+      "right": "S",
+      "left": "A",
+      "up": "W",
+      "down": "R",
+      "jump": "Space",
+      "shoot": "Left",
+      "aim_delay": 5,
+      "cancel_aim": "Right",
+      "retract_vine": "Right",
+      "respawn": "P"
     },
     "debug": {
       "toggle_grid": "G"

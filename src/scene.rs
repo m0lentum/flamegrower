@@ -30,6 +30,8 @@ const DEFAULT_PHYSICS_MATERIAL: Material = Material {
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 #[serde(default)]
 pub struct Scene {
+    // temporary hack to see the whole level before I have proper camera control
+    initial_camera_zoom: f64,
     recipes: Vec<Recipe>,
 }
 impl Asset for Scene {
@@ -39,7 +41,14 @@ impl Asset for Scene {
 }
 
 impl Scene {
-    pub fn instantiate(&self, physics: &mut Physics, graph: &Graph) {
+    pub fn instantiate(
+        &self,
+        camera: &mut sf::graphics::camera::MouseDragCamera,
+        physics: &mut Physics,
+        graph: &Graph,
+    ) {
+        camera.pose.scale = self.initial_camera_zoom;
+
         let mut l = graph.get_layer_bundle();
         for recipe in self.recipes.iter() {
             recipe.spawn(physics, &mut l);

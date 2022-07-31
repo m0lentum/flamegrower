@@ -17,7 +17,7 @@ def y_center: -(.y + hw * (angle_rad | sin) + hh * (angle_rad | cos));
 # scaling factor so we can use Tiled at a comfortable zoom level
 def scale(f): f / 30;
 
-{
+({
   recipes: [.layers[] | .objects[] | {
       type,
       pose: {
@@ -31,7 +31,10 @@ def scale(f): f / 30;
         [.polyline[] | { x: scale(x), y: scale(y) }]
         else null end),
     }
+    # custom properties from { key, value } objects into first-class fields
     + if .properties != null then [.properties[] | { key: .name, value }] | from_entries else null end
   ]
 }
++ if .properties != null then [.properties[] | { key: .name, value }] | from_entries else null end
+)
 | delpaths([path(.. | nulls)])
