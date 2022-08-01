@@ -1,13 +1,6 @@
 //! Player controller
 
-use starframe::{
-    self as sf,
-    graph::{Graph, NodeKey},
-    graphics as gx,
-    input::{AxisQuery, ButtonQuery},
-    math as m,
-    physics::{self as phys, rope},
-};
+use starframe as sf;
 
 use crate::fire::Flammable;
 
@@ -39,29 +32,29 @@ pub struct PlayerSpawnPoint;
 
 #[derive(Clone, Copy, Debug)]
 struct PlayerNodes {
-    pose: NodeKey<m::Pose>,
-    body: NodeKey<phys::Body>,
-    coll: NodeKey<phys::Collider>,
+    pose: sf::NodeKey<sf::Pose>,
+    body: sf::NodeKey<sf::Body>,
+    coll: sf::NodeKey<sf::Collider>,
 }
 
 #[derive(Clone, Copy, Debug)]
 struct AttachedVine {
-    rope: rope::RopeProperties,
-    player_constraint: phys::ConstraintHandle,
+    rope: sf::rope::RopeProperties,
+    player_constraint: sf::ConstraintHandle,
 }
 
 /// Whatever the mouse / gamepad aim stick is currently pointing at
 /// and whether or not a vine can be created there. Used to draw aiming HUD.
 #[derive(Clone, Copy, Debug)]
 struct AimTarget {
-    point: m::Vec2,
+    point: sf::Vec2,
     validity: AimTargetValidity,
 }
 
 #[derive(Clone, Copy, Debug)]
 enum AimTargetValidity {
     TooClose,
-    Valid { collider: NodeKey<phys::Collider> },
+    Valid { collider: sf::NodeKey<sf::Collider> },
     TooFar,
 }
 
@@ -76,23 +69,23 @@ pub struct PlayerController {
     aim_target: AimTarget,
 }
 
-sf::graph::named_layer_bundle! {
+sf::named_layer_bundle! {
     pub struct SpawnLayers<'a> {
-        pose: w m::Pose,
-        collider: w phys::Collider,
-        body: w phys::Body,
-        mesh: w gx::Mesh,
+        pose: w sf::Pose,
+        collider: w sf::Collider,
+        body: w sf::Body,
+        mesh: w sf::Mesh,
         spawn: r PlayerSpawnPoint,
     }
 }
 
-sf::graph::named_layer_bundle! {
+sf::named_layer_bundle! {
     pub struct TickLayers<'a> {
-        pose: w m::Pose,
-        collider: w phys::Collider,
-        body: w phys::Body,
-        mesh: w gx::Mesh,
-        rope: w rope::Rope,
+        pose: w sf::Pose,
+        collider: w sf::Collider,
+        body: w sf::Body,
+        mesh: w sf::Mesh,
+        rope: w sf::Rope,
         flammable: w Flammable,
     }
 }
@@ -106,7 +99,7 @@ impl PlayerController {
             // meaningless default that will be overwritten come first tick,
             // just making validity such that it won't be drawn
             aim_target: AimTarget {
-                point: m::Vec2::zero(),
+                point: sf::Vec2::zero(),
                 validity: AimTargetValidity::TooFar,
             },
         }
@@ -120,29 +113,29 @@ impl PlayerController {
         }
     }
 
-    pub fn respawn(&mut self, graph: &mut Graph) {
+    pub fn respawn(&mut self, graph: &mut sf::Graph) {
         if let Some(nodes) = &self.body {
             graph.gather(nodes.body).delete();
         }
 
         let mut l: SpawnLayers = graph.get_layer_bundle();
 
-        let spawn_point: m::Vec2 = match l
+        let spawn_point: sf::Vec2 = match l
             .spawn
             .iter()
             .next()
             .and_then(|s| s.get_neighbor_mut(&mut l.pose))
         {
             Some(spawn) => spawn.c.translation,
-            None => m::Vec2::zero(),
+            None => sf::Vec2::zero(),
         };
 
         let mut pose = l
             .pose
-            .insert(m::Pose::new(spawn_point, m::Angle::Deg(90.0).into()));
+            .insert(sf::Pose::new(spawn_point, sf::Angle::Deg(90.0).into()));
         let mut coll = l.collider.insert(
-            phys::Collider::new_capsule(COLL_LENGTH, COLL_R)
-                .with_material(phys::Material {
+            sf::Collider::new_capsule(COLL_LENGTH, COLL_R)
+                .with_material(sf::PhysicsMaterial {
                     static_friction_coef: None,
                     dynamic_friction_coef: None,
                     restitution_coef: 0.0,
@@ -151,8 +144,8 @@ impl PlayerController {
         );
         let mut mesh = l
             .mesh
-            .insert(gx::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
-        let mut body = l.body.insert(phys::Body::new_particle(PLAYER_MASS));
+            .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
+        let mut body = l.body.insert(sf::Body::new_particle(PLAYER_MASS));
         pose.connect(&mut body);
         pose.connect(&mut coll);
         body.connect(&mut coll);
@@ -168,10 +161,10 @@ impl PlayerController {
     pub fn tick(
         &mut self,
         input: &sf::InputCache,
-        cursor_world_pos: m::Vec2,
+        cursor_world_pos: sf::Vec2,
         keys: &crate::settings::PlayerKeys,
-        physics: &mut phys::Physics,
-        graph: &mut Graph,
+        physics: &mut sf::Physics,
+        graph: &mut sf::Graph,
     ) -> Option<()> {
         let nodes = self.body?;
 
@@ -194,7 +187,7 @@ impl PlayerController {
         // handle contacts (groundedness, interactables)
         //
 
-        let normal_y_limit = m::Angle::Deg(GROUNDED_ANGLE_LIMIT).rad().cos();
+        let normal_y_limit = sf::Angle::Deg(GROUNDED_ANGLE_LIMIT).rad().cos();
 
         let most_downright_contact = {
             let mut lowest_cont_y = f64::MAX;
@@ -214,8 +207,8 @@ impl PlayerController {
 
         #[derive(Debug, Clone, Copy)]
         enum Groundedness {
-            EvenGround(m::Unit<m::Vec2>),
-            SteepSlope(m::Unit<m::Vec2>),
+            EvenGround(sf::Unit<sf::Vec2>),
+            SteepSlope(sf::Unit<sf::Vec2>),
             Air,
         }
         let groundedness = match most_downright_contact {
@@ -233,11 +226,11 @@ impl PlayerController {
         // (and don't aim again until pressing shoot again)
 
         // TODO: accessibility: also allow click to activate and click again to shoot
-        if input.button(ButtonQuery::mouse(keys.shoot).held_exact(keys.aim_delay)) {
+        if input.button(sf::ButtonQuery::mouse(keys.shoot).held_exact(keys.aim_delay)) {
             self.is_aim_active = true;
         }
         if input.button(keys.cancel_aim.into())
-            || input.button(ButtonQuery::mouse(keys.shoot).released())
+            || input.button(sf::ButtonQuery::mouse(keys.shoot).released())
         {
             self.is_aim_active = false;
         }
@@ -246,11 +239,11 @@ impl PlayerController {
         // move
         //
 
-        let target_hdir = input.axis(AxisQuery {
+        let target_hdir = input.axis(sf::AxisQuery {
             pos_btn: keys.right.into(),
             neg_btn: keys.left.into(),
         });
-        let target_vdir = input.axis(AxisQuery {
+        let target_vdir = input.axis(sf::AxisQuery {
             pos_btn: keys.up.into(),
             neg_btn: keys.down.into(),
         });
@@ -260,7 +253,8 @@ impl PlayerController {
             // for improved swing feel and control, hopefully
             (Groundedness::Air, Some(_rope)) => {
                 if target_hdir != 0.0 || target_vdir != 0.0 {
-                    let target_dir = m::Unit::new_normalize(m::Vec2::new(target_hdir, target_vdir));
+                    let target_dir =
+                        sf::Unit::new_normalize(sf::Vec2::new(target_hdir, target_vdir));
                     player_body.velocity.linear += ROPE_SWINGING_ACCEL * *target_dir;
                 }
             }
@@ -268,9 +262,9 @@ impl PlayerController {
             _ => {
                 let ground_dir = match groundedness {
                     // on ground, match ground slope
-                    Groundedness::EvenGround(normal) => m::left_normal(*normal),
+                    Groundedness::EvenGround(normal) => sf::math::left_normal(*normal),
                     // in air or on a steep slope, normal horizontal air acceleration
-                    _ => m::Vec2::unit_x(),
+                    _ => sf::Vec2::unit_x(),
                 };
 
                 let target_hvel = target_hdir * BASE_MOVE_SPEED;
@@ -298,7 +292,7 @@ impl PlayerController {
             if let Groundedness::EvenGround(normal) = groundedness {
                 player_body.velocity.linear -= JUMP_VEL * *normal;
             }
-        } else if input.button(ButtonQuery::from(keys.jump).released())
+        } else if input.button(sf::ButtonQuery::from(keys.jump).released())
             && player_body.velocity.linear.y > 0.0
         {
             player_body.velocity.linear.y /= 2.0;
@@ -309,8 +303,8 @@ impl PlayerController {
         //
 
         let player_to_cursor = cursor_world_pos - player_pose.translation;
-        let ray_dir = m::Unit::new_normalize(player_to_cursor);
-        let ray = phys::Ray {
+        let ray_dir = sf::Unit::new_normalize(player_to_cursor);
+        let ray = sf::Ray {
             start: player_pose.translation,
             dir: ray_dir,
         };
@@ -350,7 +344,7 @@ impl PlayerController {
                 collider: target_collider,
             },
         ) = (
-            input.button(ButtonQuery::mouse(keys.shoot).released()),
+            input.button(sf::ButtonQuery::mouse(keys.shoot).released()),
             self.aim_target.validity,
         ) {
             match self.attached_vine {
@@ -362,9 +356,9 @@ impl PlayerController {
                     // start at the other end to control angle constraint propagation
                     let rope_start = self.aim_target.point;
                     let rope_end = ray.point_at_t(ROPE_START_OFFSET);
-                    let rope = rope::spawn_line(
-                        rope::Rope {
-                            bending_max_angle: m::Angle::Deg(75.0).rad(),
+                    let rope = sf::rope::spawn_line(
+                        sf::Rope {
+                            bending_max_angle: sf::Angle::Deg(75.0).rad(),
                             bending_compliance: 0.05,
                             ..Default::default()
                         },
@@ -391,9 +385,9 @@ impl PlayerController {
                     // constraint on the player
 
                     let player_constraint = physics.add_constraint(
-                        phys::ConstraintBuilder::new(nodes.body)
+                        sf::ConstraintBuilder::new(nodes.body)
                             .with_target(rope.last_particle)
-                            .with_limit(phys::ConstraintLimit::Lt)
+                            .with_limit(sf::ConstraintLimit::Lt)
                             .build_distance((rope_end - player_pos).mag()),
                     );
 
@@ -408,7 +402,7 @@ impl PlayerController {
                                 .unwrap_or_default();
                             let offset = b_pose.inversed() * rope_start;
                             physics.add_constraint(
-                                phys::ConstraintBuilder::new(rope.first_particle)
+                                sf::ConstraintBuilder::new(rope.first_particle)
                                     .with_target(body.key())
                                     .with_target_origin(offset)
                                     .build_attachment(),
@@ -416,7 +410,7 @@ impl PlayerController {
                         }
                         None => {
                             physics.add_constraint(
-                                phys::ConstraintBuilder::new(rope.first_particle)
+                                sf::ConstraintBuilder::new(rope.first_particle)
                                     .with_target_origin(rope_start)
                                     .build_attachment(),
                             );
@@ -435,10 +429,10 @@ impl PlayerController {
                     let player_body = l.body.get_mut_unchecked(nodes.body).c;
 
                     let vel_mag = player_body.velocity.linear.mag();
-                    let vel_dir = m::Unit::new_unchecked(player_body.velocity.linear / vel_mag);
+                    let vel_dir = sf::Unit::new_unchecked(player_body.velocity.linear / vel_mag);
 
                     let player_to_center = rope_start - player_pos;
-                    let tangent = m::Unit::new_normalize(m::left_normal(player_to_center));
+                    let tangent = sf::Unit::new_normalize(sf::math::left_normal(player_to_center));
                     let tan_dot_vel = tangent.dot(*vel_dir);
                     let (tangent, tan_dot_vel) = if tan_dot_vel >= 0.0 {
                         (tangent, tan_dot_vel)
@@ -446,7 +440,7 @@ impl PlayerController {
                         (-tangent, -tan_dot_vel)
                     };
 
-                    let dot_limit = m::Angle::Deg(BOOST_ANGLE_LIMIT).rad().cos();
+                    let dot_limit = sf::Angle::Deg(BOOST_ANGLE_LIMIT).rad().cos();
                     if tan_dot_vel > dot_limit {
                         player_body.velocity.linear = (BOOST_BONUS_SPEED + vel_mag) * *tangent;
                     }
@@ -461,13 +455,13 @@ impl PlayerController {
                     let curr_end_body = l.body.get(attached.rope.last_particle)?;
                     let curr_end = curr_end_body.get_neighbor(&l.pose.subview())?.c.translation;
                     let new_segment_end = self.aim_target.point;
-                    let dir = m::Unit::new_normalize(new_segment_end - curr_end);
+                    let dir = sf::Unit::new_normalize(new_segment_end - curr_end);
 
                     let mut rope_node = l.rope.get_mut(attached.rope.rope_node)?;
                     let dist = (new_segment_end - curr_end).mag();
                     let new_particle_count = (dist / rope_node.c.spacing) as usize;
 
-                    let new_rope = rope::extend_line(
+                    let new_rope = sf::rope::extend_line(
                         &mut rope_node,
                         dir,
                         new_particle_count,
@@ -501,7 +495,7 @@ impl PlayerController {
                                     .map(|p| p.c.translation)
                                     .unwrap_or_default();
                             physics.add_constraint(
-                                phys::ConstraintBuilder::new(new_rope.last_particle)
+                                sf::ConstraintBuilder::new(new_rope.last_particle)
                                     .with_target(body.key())
                                     .with_target_origin(offset)
                                     .build_attachment(),
@@ -509,7 +503,7 @@ impl PlayerController {
                         }
                         None => {
                             physics.add_constraint(
-                                phys::ConstraintBuilder::new(new_rope.last_particle)
+                                sf::ConstraintBuilder::new(new_rope.last_particle)
                                     .with_target_origin(new_segment_end)
                                     .build_attachment(),
                             );

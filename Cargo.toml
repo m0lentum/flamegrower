@@ -8,11 +8,6 @@ edition = "2021"
 [dependencies]
 starframe = { path = "./starframe" }
 
-# TODO: think about exposing wgpu and winit from starframe
-# to ensure same version
-wgpu = "0.13.1"
-winit = "0.26.0"
-
 serde = { version = "1.0.140", features = ["derive"] }
 assets_manager = { version = "0.8.1", features = ["hot-reloading", "json"] }
 lazy_static = "1.4.0"

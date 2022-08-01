@@ -425,8 +425,6 @@ dependencies = [
  "lazy_static",
  "serde",
  "starframe",
- "wgpu",
- "winit",
 ]
 
 [[package]]

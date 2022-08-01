@@ -1,10 +1,4 @@
-use starframe::{
-    self as sf,
-    graph::{Graph, LayerViewMut, NodeRefMut},
-    graphics::Mesh,
-    math as m,
-    physics::{Body, Collider, Material, Physics},
-};
+use starframe as sf;
 
 use assets_manager::{loader, Asset};
 
@@ -15,7 +9,7 @@ use crate::{
 
 /// Default physics material should allow player to push boxes
 /// but also rotate large ones by grabbing a high corner and pulling down
-const DEFAULT_PHYSICS_MATERIAL: Material = Material {
+const DEFAULT_PHYSICS_MATERIAL: sf::PhysicsMaterial = sf::PhysicsMaterial {
     // big TODO: fix static friction being stronger in one direction
     // probably best done with a block solver
     static_friction_coef: None,
@@ -44,8 +38,8 @@ impl Scene {
     pub fn instantiate(
         &self,
         camera: &mut sf::graphics::camera::MouseDragCamera,
-        physics: &mut Physics,
-        graph: &Graph,
+        physics: &mut sf::Physics,
+        graph: &sf::Graph,
     ) {
         camera.pose.scale = self.initial_camera_zoom;
 
@@ -68,7 +62,7 @@ pub enum Recipe {
     //
     StaticCapsuleChain {
         pose: TiledPose,
-        polyline: Vec<m::Vec2>,
+        polyline: Vec<sf::Vec2>,
         thickness: f64,
     },
     StaticCollider {
@@ -103,12 +97,12 @@ pub enum Recipe {
     },
 }
 
-sf::graph::named_layer_bundle! {
+sf::named_layer_bundle! {
     pub struct SpawnLayers<'a> {
-        pose: w m::Pose,
-        coll: w Collider,
-        body: w Body,
-        mesh: w Mesh,
+        pose: w sf::Pose,
+        coll: w sf::Collider,
+        body: w sf::Body,
+        mesh: w sf::Mesh,
         flammable: w Flammable,
         spawnpt: w PlayerSpawnPoint,
     }
@@ -117,7 +111,7 @@ sf::graph::named_layer_bundle! {
 impl Recipe {
     pub fn spawn(
         &self,
-        _physics: &mut Physics, // will be used as soon as I get making nontrivial levels
+        _physics: &mut sf::Physics, // will be used as soon as I get making nontrivial levels
         l: &mut SpawnLayers,
     ) {
         match self {
@@ -132,7 +126,7 @@ impl Recipe {
                 let offset = pose.0.translation;
                 let r = thickness / 2.0;
                 for p in polyline.windows(2) {
-                    let p: [m::Vec2; 2] = [offset + p[0], offset + p[1]];
+                    let p: [sf::Vec2; 2] = [offset + p[0], offset + p[1]];
                     let mid = (p[0] + p[1]) / 2.0;
                     let dist = p[1] - p[0];
                     let len = dist.mag();
@@ -140,9 +134,9 @@ impl Recipe {
 
                     let mut pose = l
                         .pose
-                        .insert(m::Pose::new(mid, m::Angle::Rad(angle).into()));
-                    let mut coll = l.coll.insert(Collider::new_capsule(len, r));
-                    let mut mesh = l.mesh.insert(Mesh::from(*coll.c).with_color([1.0; 4]));
+                        .insert(sf::Pose::new(mid, sf::Angle::Rad(angle).into()));
+                    let mut coll = l.coll.insert(sf::Collider::new_capsule(len, r));
+                    let mut mesh = l.mesh.insert(sf::Mesh::from(*coll.c).with_color([1.0; 4]));
                     pose.connect(&mut coll);
                     pose.connect(&mut mesh);
                 }
@@ -151,7 +145,7 @@ impl Recipe {
                 let mut pose = l.pose.insert(pose.0);
                 let mut coll = collider.spawn(&mut l.coll);
                 let color = [1.0; 4];
-                let mut mesh = l.mesh.insert(Mesh::from(*coll.c).with_color(color));
+                let mut mesh = l.mesh.insert(sf::Mesh::from(*coll.c).with_color(color));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
             }
@@ -166,10 +160,10 @@ impl Recipe {
             Recipe::PhysicsObject { pose, collider } => {
                 let mut pose = l.pose.insert(pose.0);
                 let mut coll = collider.spawn(&mut l.coll);
-                let mut body = l.body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                let mut body = l.body.insert(sf::Body::new_dynamic(coll.c.info(), 1.0));
                 let mut mesh = l
                     .mesh
-                    .insert(Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
+                    .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 pose.connect(&mut body);
@@ -184,11 +178,11 @@ impl Recipe {
                 let mut coll = collider.spawn(&mut l.coll);
                 let mut mesh = l
                     .mesh
-                    .insert(Mesh::from(*coll.c).with_color([0.05, 0.02, 0.1, 1.0]));
+                    .insert(sf::Mesh::from(*coll.c).with_color([0.05, 0.02, 0.1, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
-                    let mut body = l.body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                    let mut body = l.body.insert(sf::Body::new_dynamic(coll.c.info(), 1.0));
                     body.connect(&mut coll);
                     pose.connect(&mut body);
                 }
@@ -207,11 +201,11 @@ impl Recipe {
                 let mut coll = collider.spawn(&mut l.coll);
                 let mut mesh = l
                     .mesh
-                    .insert(Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
+                    .insert(sf::Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
-                    let mut body = l.body.insert(Body::new_dynamic(coll.c.info(), 1.0));
+                    let mut body = l.body.insert(sf::Body::new_dynamic(coll.c.info(), 1.0));
                     body.connect(&mut coll);
                     pose.connect(&mut body);
                 }
@@ -235,7 +229,7 @@ impl Recipe {
 /// Pose deserialized from Tiled data. Every Tiled object has this.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
 #[serde(from = "TiledPoseDeser")]
-pub struct TiledPose(pub m::Pose);
+pub struct TiledPose(pub sf::Pose);
 
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
 struct TiledPoseDeser {
@@ -246,14 +240,14 @@ struct TiledPoseDeser {
 
 impl From<TiledPoseDeser> for TiledPose {
     fn from(p: TiledPoseDeser) -> Self {
-        Self(m::Pose::new(
-            m::Vec2::new(p.x, p.y),
-            m::Angle::Rad(p.rotation).into(),
+        Self(sf::Pose::new(
+            sf::Vec2::new(p.x, p.y),
+            sf::Angle::Rad(p.rotation).into(),
         ))
     }
 }
 
-impl From<TiledPose> for m::Pose {
+impl From<TiledPose> for sf::Pose {
     fn from(p: TiledPose) -> Self {
         p.0
     }
@@ -287,13 +281,13 @@ impl Default for TiledColliderShape {
 }
 
 impl TiledColliderShape {
-    pub fn realise(&self, width: f64, height: f64) -> Collider {
+    pub fn realise(&self, width: f64, height: f64) -> sf::Collider {
         match self {
-            Self::Circle => Collider::new_circle(width / 2.0),
-            Self::Rect => Collider::new_rect(width, height),
-            Self::Capsule => Collider::new_capsule(width, height / 2.0),
-            Self::Hexagon => Collider::new_hexagon(width / 2.0),
-            Self::Triangle => Collider::new_triangle(width / 2.0),
+            Self::Circle => sf::Collider::new_circle(width / 2.0),
+            Self::Rect => sf::Collider::new_rect(width, height),
+            Self::Capsule => sf::Collider::new_capsule(width, height / 2.0),
+            Self::Hexagon => sf::Collider::new_hexagon(width / 2.0),
+            Self::Triangle => sf::Collider::new_triangle(width / 2.0),
         }
     }
 }
@@ -301,8 +295,8 @@ impl TiledColliderShape {
 impl TiledCollider {
     pub fn spawn<'r, 'v: 'r>(
         &self,
-        l_collider: &'r mut LayerViewMut<'v, Collider>,
-    ) -> NodeRefMut<'r, Collider> {
+        l_collider: &'r mut sf::LayerViewMut<'v, sf::Collider>,
+    ) -> sf::NodeRefMut<'r, sf::Collider> {
         l_collider.insert(
             self.shape
                 .realise(self.width, self.height)

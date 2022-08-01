@@ -1,12 +1,6 @@
-use lazy_static::lazy_static;
-use starframe::{
-    game::{self, Game, GameParams},
-    graph::{new_graph, Graph},
-    graphics::{self as gx, camera::Camera},
-    math as m, physics as phys,
-};
-
 use assets_manager::{AssetCache, Handle};
+use lazy_static::lazy_static;
+use starframe as sf;
 
 mod fire;
 mod player;
@@ -19,14 +13,14 @@ use settings::Settings;
 // Constants & init
 //
 
-fn world_graph() -> Graph {
-    new_graph! {
+fn world_graph() -> sf::Graph {
+    sf::new_graph! {
         // starframe types
-        m::Pose,
-        phys::Body,
-        phys::Collider,
-        phys::rope::Rope,
-        gx::Mesh,
+        sf::Pose,
+        sf::Body,
+        sf::Collider,
+        sf::Rope,
+        sf::Mesh,
         // our types
         fire::Flammable,
         player::PlayerSpawnPoint,
@@ -34,14 +28,15 @@ fn world_graph() -> Graph {
 }
 
 mod collision_layers {
-    use starframe::physics::collision::{MaskMatrix, ROPE_LAYER};
+    use sf::physics::collision::ROPE_LAYER;
+    use starframe as sf;
 
     pub const PLAYER: usize = 1;
     /// Things that are only interacted with by the player
     pub const INTERACTABLE: usize = 2;
 
-    pub(super) fn create_layer_matrix() -> MaskMatrix {
-        let mut mat = MaskMatrix::default();
+    pub(super) fn create_layer_matrix() -> sf::CollisionMaskMatrix {
+        let mut mat = sf::CollisionMaskMatrix::default();
         mat.ignore(PLAYER, ROPE_LAYER);
         mat.ignore_all(INTERACTABLE);
         mat.unignore(INTERACTABLE, PLAYER);
@@ -58,17 +53,17 @@ fn main() {
     #[cfg(debug_assertions)]
     ASSETS.enhance_hot_reloading();
 
-    use winit::platform::unix::WindowBuilderExtUnix;
-    let window = winit::window::WindowBuilder::new()
+    use sf::winit::platform::unix::WindowBuilderExtUnix;
+    let window = sf::winit::window::WindowBuilder::new()
         .with_title("Flamegrower")
         // X11 class I use for a window manager rule
         .with_class("game".into(), "game".into())
-        .with_inner_size(winit::dpi::LogicalSize {
+        .with_inner_size(sf::winit::dpi::LogicalSize {
             width: 1280.0,
             height: 720.0,
         });
 
-    Game::run::<State>(GameParams {
+    sf::Game::run::<State>(sf::GameParams {
         window,
         ..Default::default()
     });
@@ -84,12 +79,12 @@ enum StateEnum {
 }
 pub struct State {
     // systems
-    graph: Graph,
-    physics: phys::Physics,
-    camera: gx::camera::MouseDragCamera,
-    mesh_renderer: gx::MeshRenderer,
-    outline_renderer: gx::OutlineRenderer,
-    debug_visualizer: gx::DebugVisualizer,
+    graph: sf::Graph,
+    physics: sf::Physics,
+    camera: sf::MouseDragCamera,
+    mesh_renderer: sf::MeshRenderer,
+    outline_renderer: sf::OutlineRenderer,
+    debug_visualizer: sf::DebugVisualizer,
     grid_vis_active: bool,
     // content
     settings: AssetHandle<Settings>,
@@ -98,34 +93,32 @@ pub struct State {
     player: player::PlayerController,
 }
 impl State {
-    fn init(renderer: &gx::Renderer) -> Self {
+    fn init(renderer: &sf::Renderer) -> Self {
         let scene = ASSETS
             .load::<Scene>("scenes.test")
             .expect("test scene failed to load");
 
         State {
             graph: world_graph(),
-            physics: phys::Physics::new(
-                phys::TuningConstants {
+            physics: sf::Physics::new(
+                sf::physics::TuningConstants {
                     ..Default::default()
                 },
                 collision_layers::create_layer_matrix(),
             ),
-            camera: gx::camera::MouseDragCamera::new(
-                gx::camera::ScalingStrategy::ConstantDisplayArea {
-                    width: 30.0,
-                    height: 15.0,
-                },
-            ),
-            mesh_renderer: gx::MeshRenderer::new(renderer),
-            outline_renderer: gx::OutlineRenderer::new(
-                gx::OutlineParams {
+            camera: sf::MouseDragCamera::new(sf::CameraScalingStrategy::ConstantDisplayArea {
+                width: 30.0,
+                height: 15.0,
+            }),
+            mesh_renderer: sf::MeshRenderer::new(renderer),
+            outline_renderer: sf::OutlineRenderer::new(
+                sf::OutlineParams {
                     thickness: 10,
-                    shape: gx::OutlineShape::octagon(),
+                    shape: sf::OutlineShape::octagon(),
                 },
                 renderer,
             ),
-            debug_visualizer: gx::DebugVisualizer::new(renderer),
+            debug_visualizer: sf::DebugVisualizer::new(renderer),
             grid_vis_active: false,
             //
             settings: ASSETS.load("settings").expect("settings failed to load"),
@@ -151,12 +144,12 @@ impl State {
 // State updates
 //
 
-impl game::GameState for State {
-    fn init(renderer: &gx::Renderer) -> Self {
+impl sf::GameState for State {
+    fn init(renderer: &sf::Renderer) -> Self {
         Self::init(renderer)
     }
 
-    fn tick(&mut self, game: &Game) -> Option<()> {
+    fn tick(&mut self, game: &sf::Game) -> Option<()> {
         let settings = self.settings.read();
         let keys = settings.keymap;
 
@@ -191,7 +184,7 @@ impl game::GameState for State {
                     self.player.respawn(&mut self.graph);
                 }
 
-                let grav = phys::forcefield::Gravity(m::Vec2::new(0.0, -9.81));
+                let grav = sf::forcefield::Gravity(sf::Vec2::new(0.0, -9.81));
                 self.physics.tick(
                     game.dt_fixed,
                     self.player.time_scale(),
@@ -199,6 +192,7 @@ impl game::GameState for State {
                     self.graph.get_layer_bundle(),
                 );
 
+                use sf::Camera;
                 self.player.tick(
                     &game.input,
                     self.camera.point_screen_to_world(
@@ -225,14 +219,14 @@ impl game::GameState for State {
         }
     }
 
-    fn draw(&mut self, renderer: &mut gx::Renderer) {
+    fn draw(&mut self, renderer: &mut sf::Renderer) {
         self.outline_renderer.prepare(renderer);
         self.outline_renderer
             .init_meshes(&self.camera, renderer, self.graph.get_layer_bundle());
         self.outline_renderer.compute(renderer);
 
         let mut ctx = renderer.draw_to_window();
-        ctx.clear(wgpu::Color {
+        ctx.clear(sf::wgpu::Color {
             r: 0.1,
             g: 0.1,
             b: 0.1,
