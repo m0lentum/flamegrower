@@ -81,7 +81,8 @@ pub struct State {
     // systems
     graph: sf::Graph,
     physics: sf::Physics,
-    camera: sf::MouseDragCamera,
+    camera: sf::Camera,
+    camera_ctl: sf::MouseDragCameraController,
     mesh_renderer: sf::MeshRenderer,
     outline_renderer: sf::OutlineRenderer,
     debug_visualizer: sf::DebugVisualizer,
@@ -106,10 +107,15 @@ impl State {
                 },
                 collision_layers::create_layer_matrix(),
             ),
-            camera: sf::MouseDragCamera::new(sf::CameraScalingStrategy::ConstantDisplayArea {
+            camera: sf::Camera::new(sf::CameraScalingStrategy::ConstantDisplayArea {
                 width: 30.0,
                 height: 15.0,
             }),
+            camera_ctl: sf::MouseDragCameraController {
+                activate_button: sf::MouseButton::Middle.into(),
+                reset_button: None,
+                ..Default::default()
+            },
             mesh_renderer: sf::MeshRenderer::new(renderer),
             outline_renderer: sf::OutlineRenderer::new(
                 sf::OutlineParams {
@@ -131,6 +137,7 @@ impl State {
     fn reset(&mut self) {
         self.physics.reset();
         self.graph.reset();
+        self.camera.transform = sf::Transform::identity();
     }
 
     fn instantiate_scene(&mut self) {
@@ -172,6 +179,8 @@ impl sf::GameState for State {
             self.grid_vis_active = !self.grid_vis_active;
         }
 
+        self.camera_ctl.update(&mut self.camera, &game.input);
+
         match self.state {
             StateEnum::Playing => {
                 if game.input.button(keys.menus.pause.into()) {
@@ -192,13 +201,9 @@ impl sf::GameState for State {
                     self.graph.get_layer_bundle(),
                 );
 
-                use sf::Camera;
                 self.player.tick(
                     &game.input,
-                    self.camera.point_screen_to_world(
-                        game.renderer.window_size().into(),
-                        game.input.cursor_position().into(),
-                    ),
+                    &self.camera,
                     &keys.player,
                     &mut self.physics,
                     &mut self.graph,

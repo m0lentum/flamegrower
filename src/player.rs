@@ -160,8 +160,8 @@ impl PlayerController {
 
     pub fn tick(
         &mut self,
-        input: &sf::InputCache,
-        cursor_world_pos: sf::Vec2,
+        input: &sf::Input,
+        camera: &sf::Camera,
         keys: &crate::settings::PlayerKeys,
         physics: &mut sf::Physics,
         graph: &mut sf::Graph,
@@ -302,7 +302,7 @@ impl PlayerController {
         // aim with mouse
         //
 
-        let player_to_cursor = cursor_world_pos - player_pose.translation;
+        let player_to_cursor = input.cursor_position_world(camera) - player_pose.translation;
         let ray_dir = sf::Unit::new_normalize(player_to_cursor);
         let ray = sf::Ray {
             start: player_pose.translation,

@@ -37,11 +37,11 @@ impl Asset for Scene {
 impl Scene {
     pub fn instantiate(
         &self,
-        camera: &mut sf::graphics::camera::MouseDragCamera,
+        camera: &mut sf::Camera,
         physics: &mut sf::Physics,
         graph: &sf::Graph,
     ) {
-        camera.pose.scale = self.initial_camera_zoom;
+        camera.transform.scale = self.initial_camera_zoom;
 
         let mut l = graph.get_layer_bundle();
         for recipe in self.recipes.iter() {
