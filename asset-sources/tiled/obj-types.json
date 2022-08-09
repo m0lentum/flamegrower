@@ -4,6 +4,11 @@
         "name": "Flamevine",
         "properties": [
             {
+                "name": "corner_radius",
+                "type": "float",
+                "value": 0
+            },
+            {
                 "name": "is_static",
                 "type": "bool",
                 "value": true
@@ -21,6 +26,11 @@
         "name": "PhysicsObject",
         "properties": [
             {
+                "name": "corner_radius",
+                "type": "float",
+                "value": 0
+            },
+            {
                 "name": "shape",
                 "propertytype": "Shape",
                 "type": "string",
@@ -35,7 +45,7 @@
         ]
     },
     {
-        "color": "#ffdddde2",
+        "color": "#ff000000",
         "name": "StaticCapsuleChain",
         "properties": [
             {
@@ -46,9 +56,14 @@
         ]
     },
     {
-        "color": "#ffdedee3",
+        "color": "#ff000000",
         "name": "StaticCollider",
         "properties": [
+            {
+                "name": "corner_radius",
+                "type": "float",
+                "value": 0
+            },
             {
                 "name": "shape",
                 "propertytype": "Shape",
@@ -61,6 +76,11 @@
         "color": "#ff8d24e2",
         "name": "Weed",
         "properties": [
+            {
+                "name": "corner_radius",
+                "type": "float",
+                "value": 0
+            },
             {
                 "name": "is_static",
                 "type": "bool",

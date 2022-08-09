@@ -3,7 +3,7 @@
     "menus": {
       "exit": "Escape",
       "reload": "P",
-      "pause": "G"
+      "pause": "J"
     },
     "player": {
       "right": "S",
@@ -18,7 +18,7 @@
       "respawn": "P"
     },
     "debug": {
-      "toggle_grid": "G"
+      "toggle_grid": "Y"
     }
   }
 }

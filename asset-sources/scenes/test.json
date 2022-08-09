@@ -16,8 +16,8 @@
                  "type":"PlayerSpawnPoint",
                  "visible":true,
                  "width":0,
-                 "x":-285,
-                 "y":-180
+                 "x":-195,
+                 "y":-172.5
                 }, 
                 {
                  "height":90,
@@ -211,19 +211,19 @@
                         }, 
                         {
                          "x":0,
-                         "y":60
+                         "y":52.5
                         }, 
                         {
                          "x":427.5,
-                         "y":60
+                         "y":52.5
                         }, 
                         {
                          "x":427.5,
-                         "y":-30
+                         "y":-22.5
                         }, 
                         {
                          "x":360,
-                         "y":-30
+                         "y":-22.5
                         }, 
                         {
                          "x":180,
@@ -245,6 +245,73 @@
                  "width":0,
                  "x":360,
                  "y":-60
+                }, 
+                {
+                 "height":90,
+                 "id":50,
+                 "name":"",
+                 "rotation":0,
+                 "type":"StaticCollider",
+                 "visible":true,
+                 "width":262.5,
+                 "x":757.5,
+                 "y":-90
+                }, 
+                {
+                 "height":450,
+                 "id":51,
+                 "name":"",
+                 "rotation":0,
+                 "type":"StaticCollider",
+                 "visible":true,
+                 "width":262.5,
+                 "x":1530,
+                 "y":-90
+                }, 
+                {
+                 "height":330,
+                 "id":52,
+                 "name":"",
+                 "properties":[
+                        {
+                         "name":"corner_radius",
+                         "type":"float",
+                         "value":0.25
+                        }],
+                 "rotation":0,
+                 "type":"PhysicsObject",
+                 "visible":true,
+                 "width":30,
+                 "x":960,
+                 "y":-420
+                }, 
+                {
+                 "height":450,
+                 "id":53,
+                 "name":"",
+                 "rotation":0,
+                 "type":"StaticCollider",
+                 "visible":true,
+                 "width":240,
+                 "x":720,
+                 "y":-720
+                }, 
+                {
+                 "height":15,
+                 "id":56,
+                 "name":"",
+                 "properties":[
+                        {
+                         "name":"corner_radius",
+                         "type":"float",
+                         "value":0.15
+                        }],
+                 "rotation":0,
+                 "type":"StaticCollider",
+                 "visible":true,
+                 "width":15,
+                 "x":1005,
+                 "y":-97.5
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -253,7 +320,7 @@
          "y":0
         }],
  "nextlayerid":3,
- "nextobjectid":50,
+ "nextobjectid":58,
  "orientation":"orthogonal",
  "properties":[
         {

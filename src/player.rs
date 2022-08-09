@@ -317,7 +317,10 @@ impl PlayerController {
             Some(hit) => {
                 self.aim_target = AimTarget {
                     point: ray.point_at_t(hit.t),
-                    validity: if hit.t < ROPE_MIN_LENGTH {
+                    validity: if self.attached_vine.is_none() && hit.t < ROPE_MIN_LENGTH {
+                        // can't create a new vine super close.
+                        // if holding onto a vine, you can attach that to something
+                        // even if it's right under your feet
                         AimTargetValidity::TooClose
                     } else {
                         AimTargetValidity::Valid {

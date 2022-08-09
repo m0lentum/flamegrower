@@ -17,6 +17,8 @@ const DEFAULT_PHYSICS_MATERIAL: sf::PhysicsMaterial = sf::PhysicsMaterial {
     restitution_coef: 0.0,
 };
 
+const DEFAULT_BODY_DENSITY: f64 = 0.25;
+
 /// A scene created with the Tiled editor.
 ///
 /// Raw tiled scenes need to be run through `export.jq` to parse correctly.
@@ -160,7 +162,9 @@ impl Recipe {
             Recipe::PhysicsObject { pose, collider } => {
                 let mut pose = l.pose.insert(pose.0);
                 let mut coll = collider.spawn(&mut l.coll);
-                let mut body = l.body.insert(sf::Body::new_dynamic(coll.c.info(), 1.0));
+                let mut body = l
+                    .body
+                    .insert(sf::Body::new_dynamic(coll.c.info(), DEFAULT_BODY_DENSITY));
                 let mut mesh = l
                     .mesh
                     .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
@@ -182,7 +186,9 @@ impl Recipe {
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
-                    let mut body = l.body.insert(sf::Body::new_dynamic(coll.c.info(), 1.0));
+                    let mut body = l
+                        .body
+                        .insert(sf::Body::new_dynamic(coll.c.info(), DEFAULT_BODY_DENSITY));
                     body.connect(&mut coll);
                     pose.connect(&mut body);
                 }
@@ -263,6 +269,8 @@ pub struct TiledCollider {
     height: f64,
     #[serde(default)]
     shape: TiledColliderShape,
+    #[serde(default)]
+    corner_radius: f64,
 }
 
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
@@ -297,11 +305,14 @@ impl TiledCollider {
         &self,
         l_collider: &'r mut sf::LayerViewMut<'v, sf::Collider>,
     ) -> sf::NodeRefMut<'r, sf::Collider> {
-        l_collider.insert(
-            self.shape
-                .realise(self.width, self.height)
-                .with_material(DEFAULT_PHYSICS_MATERIAL),
-        )
+        let mut coll = self
+            .shape
+            .realise(self.width, self.height)
+            .with_material(DEFAULT_PHYSICS_MATERIAL);
+        if self.corner_radius > 0.0 {
+            coll.shape = coll.shape.rounded_inward(self.corner_radius);
+        }
+        l_collider.insert(coll)
     }
 }
 
