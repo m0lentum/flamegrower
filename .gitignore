@@ -10,6 +10,7 @@ perf.*
 # assets that have source files in asset-sources
 # and can be generated from them with a script
 assets/scenes/
+assets/models/
 
 # asset backup files
 *.blend1
