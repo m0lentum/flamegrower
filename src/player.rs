@@ -1,13 +1,15 @@
 //! Player controller
 
+use assets_manager::asset::Gltf;
+
 use starframe as sf;
 
-use crate::fire::Flammable;
+use crate::{fire::Flammable, AssetHandle, ASSETS};
 
 // tuning constants
 
-const COLL_R: f64 = 0.2;
-const COLL_LENGTH: f64 = 0.4;
+const COLL_R: f64 = 0.3;
+const COLL_LENGTH: f64 = 1.2;
 const PLAYER_MASS: f64 = 1.0;
 const GROUNDED_ANGLE_LIMIT: f64 = 60.0;
 const BASE_MOVE_SPEED: f64 = 6.0;
@@ -67,6 +69,7 @@ pub struct PlayerController {
     is_aim_active: bool,
     // aim target is checked even if not in aim mode to draw a simplified indicator
     aim_target: AimTarget,
+    mesh: AssetHandle<Gltf>,
 }
 
 sf::named_layer_bundle! {
@@ -102,6 +105,9 @@ impl PlayerController {
                 point: sf::Vec2::zero(),
                 validity: AimTargetValidity::TooFar,
             },
+            mesh: ASSETS
+                .load::<Gltf>("models.player")
+                .expect("Missing or invalid player model"),
         }
     }
 
@@ -113,7 +119,7 @@ impl PlayerController {
         }
     }
 
-    pub fn respawn(&mut self, graph: &mut sf::Graph) {
+    pub fn respawn(&mut self, renderer: &sf::Renderer, graph: &mut sf::Graph) {
         if let Some(nodes) = &self.body {
             graph.gather(nodes.body).delete();
         }
@@ -142,9 +148,21 @@ impl PlayerController {
                 })
                 .with_layer(super::collision_layers::PLAYER),
         );
-        let mut mesh = l
-            .mesh
-            .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.8, 0.6, 1.0]));
+        let mesh_gltf = self.mesh.read();
+        let mesh_bufs: Vec<&[u8]> = mesh_gltf
+            .document
+            .buffers()
+            .map(|b| mesh_gltf.get_buffer(&b))
+            .collect();
+        let mut mesh = l.mesh.insert(
+            sf::Mesh::from_gltf(renderer, &mesh_gltf.document, &mesh_bufs).with_offset(
+                sf::Pose::new(
+                    sf::Vec2::new(-COLL_LENGTH / 2.0 - COLL_R, 0.0),
+                    sf::Angle::Deg(-90.0).into(),
+                ),
+            ),
+        );
+        mesh.c.activate_animation("walk").unwrap();
         let mut body = l.body.insert(sf::Body::new_particle(PLAYER_MASS));
         pose.connect(&mut body);
         pose.connect(&mut coll);
@@ -156,6 +174,18 @@ impl PlayerController {
             body: body.key(),
             coll: coll.key(),
         });
+
+        let mut pose2_test = l.pose.insert(
+            sf::PoseBuilder::new()
+                .with_position(sf::Vec2::new(-15.0, 10.0))
+                .build(),
+        );
+        let mut mesh2_test = l.mesh.insert(sf::Mesh::from_gltf(
+            renderer,
+            &mesh_gltf.document,
+            &mesh_bufs,
+        ));
+        pose2_test.connect(&mut mesh2_test);
     }
 
     pub fn tick(

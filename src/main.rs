@@ -190,7 +190,7 @@ impl sf::GameState for State {
 
                 // respawn player
                 if game.input.button(keys.player.respawn.into()) {
-                    self.player.respawn(&mut self.graph);
+                    self.player.respawn(&game.renderer, &mut self.graph);
                 }
 
                 let grav = sf::forcefield::Gravity(sf::Vec2::new(0.0, -9.81));
@@ -224,7 +224,7 @@ impl sf::GameState for State {
         }
     }
 
-    fn draw(&mut self, renderer: &mut sf::Renderer) {
+    fn draw(&mut self, renderer: &mut sf::Renderer, dt: f32) {
         self.outline_renderer.prepare(renderer);
         self.outline_renderer
             .init_meshes(&self.camera, renderer, self.graph.get_layer_bundle());
@@ -240,6 +240,8 @@ impl sf::GameState for State {
 
         self.outline_renderer.draw(&mut ctx);
 
+        self.mesh_renderer
+            .step_time(dt, self.graph.get_layer_bundle());
         self.mesh_renderer
             .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
 

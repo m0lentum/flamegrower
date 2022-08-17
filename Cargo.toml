@@ -9,7 +9,7 @@ edition = "2021"
 starframe = { path = "./starframe" }
 
 serde = { version = "1.0.140", features = ["derive"] }
-assets_manager = { version = "0.8.1", features = ["hot-reloading", "json"] }
+assets_manager = { version = "0.8.1", features = ["hot-reloading", "json", "gltf"] }
 lazy_static = "1.4.0"
 
 [profile.dev.package."*"]
