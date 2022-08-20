@@ -203,7 +203,7 @@ impl sf::GameState for State {
 
                 self.player.tick(
                     &game.input,
-                    &self.camera,
+                    &mut self.camera,
                     &keys.player,
                     &mut self.physics,
                     &mut self.graph,
@@ -225,11 +225,6 @@ impl sf::GameState for State {
     }
 
     fn draw(&mut self, renderer: &mut sf::Renderer, dt: f32) {
-        self.outline_renderer.prepare(renderer);
-        self.outline_renderer
-            .init_meshes(&self.camera, renderer, self.graph.get_layer_bundle());
-        self.outline_renderer.compute(renderer);
-
         let mut ctx = renderer.draw_to_window();
         ctx.clear(sf::wgpu::Color {
             r: 0.1,
@@ -238,12 +233,20 @@ impl sf::GameState for State {
             a: 1.0,
         });
 
-        self.outline_renderer.draw(&mut ctx);
-
-        self.mesh_renderer
-            .step_time(dt, self.graph.get_layer_bundle());
+        self.mesh_renderer.step_time(
+            dt * self.player.time_scale().unwrap_or(1.0) as f32,
+            self.graph.get_layer_bundle(),
+        );
         self.mesh_renderer
             .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
+
+        ctx.submit();
+
+        self.outline_renderer.prepare(renderer);
+        self.outline_renderer.compute(renderer);
+
+        let mut ctx = renderer.draw_to_window();
+        self.outline_renderer.draw(&mut ctx);
 
         if self.grid_vis_active {
             self.debug_visualizer
@@ -251,5 +254,7 @@ impl sf::GameState for State {
         }
 
         ctx.submit();
+
+        renderer.present_frame();
     }
 }

@@ -174,24 +174,12 @@ impl PlayerController {
             body: body.key(),
             coll: coll.key(),
         });
-
-        let mut pose2_test = l.pose.insert(
-            sf::PoseBuilder::new()
-                .with_position(sf::Vec2::new(-15.0, 10.0))
-                .build(),
-        );
-        let mut mesh2_test = l.mesh.insert(sf::Mesh::from_gltf(
-            renderer,
-            &mesh_gltf.document,
-            &mesh_bufs,
-        ));
-        pose2_test.connect(&mut mesh2_test);
     }
 
     pub fn tick(
         &mut self,
         input: &sf::Input,
-        camera: &sf::Camera,
+        camera: &mut sf::Camera,
         keys: &crate::settings::PlayerKeys,
         physics: &mut sf::Physics,
         graph: &mut sf::Graph,
@@ -212,6 +200,10 @@ impl PlayerController {
 
         let player_body = l.body.get_mut(nodes.body)?.c;
         let player_pose = l.pose.get(nodes.pose)?.c;
+
+        // hacking in camera following the player like this for now,
+        // TODO: make it smooth
+        camera.transform.translation = player_pose.translation;
 
         //
         // handle contacts (groundedness, interactables)
