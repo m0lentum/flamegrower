@@ -120,6 +120,7 @@ impl State {
             outline_renderer: sf::OutlineRenderer::new(
                 sf::OutlineParams {
                     thickness: 10,
+                    color: [0.0, 0.0, 0.0, 1.0],
                     shape: sf::OutlineShape::octagon(),
                 },
                 renderer,
@@ -242,11 +243,9 @@ impl sf::GameState for State {
 
         ctx.submit();
 
-        self.outline_renderer.prepare(renderer);
-        self.outline_renderer.compute(renderer);
+        self.outline_renderer.draw(renderer);
 
         let mut ctx = renderer.draw_to_window();
-        self.outline_renderer.draw(&mut ctx);
 
         if self.grid_vis_active {
             self.debug_visualizer
