@@ -1,3 +1,8 @@
+Note: this project is currently on hiatus as the author is busy working on their
+master's thesis. Development is expected to continue in the summer of 2023.
+
+# Flamegrower
+
 This thing is very early in development and everything is subject to change,
 but here's a quick elevator pitch of my current vision.
 
