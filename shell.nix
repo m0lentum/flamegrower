@@ -3,7 +3,9 @@ let
   rust-overlay = import sources.rust-overlay;
   pkgs = import sources.nixpkgs { overlays = [ rust-overlay ]; };
 
-  rust = pkgs.rust-bin.stable."1.62.1".default;
+  rust = pkgs.rust-bin.stable.latest.default.override {
+    extensions = [ "rust-src" ];
+  };
 in
 pkgs.mkShell {
   buildInputs = [
