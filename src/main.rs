@@ -53,11 +53,8 @@ fn main() {
     #[cfg(debug_assertions)]
     ASSETS.enhance_hot_reloading();
 
-    use sf::winit::platform::unix::WindowBuilderExtUnix;
     let window = sf::winit::window::WindowBuilder::new()
         .with_title("Flamegrower")
-        // X11 class I use for a window manager rule
-        .with_class("game".into(), "game".into())
         .with_inner_size(sf::winit::dpi::LogicalSize {
             width: 1280.0,
             height: 720.0,
