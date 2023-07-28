@@ -21,6 +21,8 @@ fn world_graph() -> sf::Graph {
         sf::Collider,
         sf::Rope,
         sf::Mesh,
+        sf::Skin,
+        sf::MeshAnimator,
         // our types
         fire::Flammable,
         player::PlayerSpawnPoint,
@@ -231,10 +233,12 @@ impl sf::GameState for State {
             a: 1.0,
         });
 
-        self.mesh_renderer.step_time(
+        sf::animator::step_time(
             dt * self.player.time_scale().unwrap_or(1.0) as f32,
             self.graph.get_layer_bundle(),
         );
+        sf::animator::update_joints(self.graph.get_layer_bundle());
+
         self.mesh_renderer
             .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
 

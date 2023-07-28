@@ -78,6 +78,8 @@ sf::named_layer_bundle! {
         collider: w sf::Collider,
         body: w sf::Body,
         mesh: w sf::Mesh,
+        skin: w sf::Skin,
+        anim: w sf::MeshAnimator,
         spawn: r PlayerSpawnPoint,
     }
 }
@@ -162,12 +164,23 @@ impl PlayerController {
                 ),
             ),
         );
-        mesh.c.activate_animation("walk").unwrap();
+        let mut skin = l.skin.insert(
+            sf::gltf_import::load_skin(&mesh_gltf.document, &mesh_bufs)
+                .expect("no skin in player gltf"),
+        );
+        let mut anim = l.anim.insert(
+            sf::gltf_import::load_animations(&mesh_gltf.document, &mesh_bufs)
+                .expect("no skin in player gltf"),
+        );
+        anim.c.activate_animation("walk").unwrap();
         let mut body = l.body.insert(sf::Body::new_particle(PLAYER_MASS));
         pose.connect(&mut body);
         pose.connect(&mut coll);
         body.connect(&mut coll);
+
         pose.connect(&mut mesh);
+        mesh.connect(&mut skin);
+        skin.connect(&mut anim);
 
         self.body = Some(PlayerNodes {
             pose: pose.key(),
