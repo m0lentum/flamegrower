@@ -24,7 +24,7 @@ def export(*_):
         export_animations=True,
         export_def_bones=True, # exclude control-only bones
         export_morph=True,
-        optimize_animation_size=True,
+        export_optimize_animation_size=True,
         export_yup=True,
         # everything else we don't need
         export_image_format="NONE",

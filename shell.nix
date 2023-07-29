@@ -18,6 +18,7 @@ pkgs.mkShell {
     pkgs.tracy
     pkgs.renderdoc
     # asset authoring
+    pkgs.blender
     pkgs.tiled
     pkgs.jq
     pkgs.entr
