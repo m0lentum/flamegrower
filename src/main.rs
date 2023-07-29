@@ -83,7 +83,6 @@ pub struct State {
     camera: sf::Camera,
     camera_ctl: sf::MouseDragCameraController,
     mesh_renderer: sf::MeshRenderer,
-    outline_renderer: sf::OutlineRenderer,
     debug_visualizer: sf::DebugVisualizer,
     grid_vis_active: bool,
     // content
@@ -116,14 +115,6 @@ impl State {
                 ..Default::default()
             },
             mesh_renderer: sf::MeshRenderer::new(renderer),
-            outline_renderer: sf::OutlineRenderer::new(
-                sf::OutlineParams {
-                    thickness: 10,
-                    color: [0.0, 0.0, 0.0, 1.0],
-                    shape: sf::OutlineShape::octagon(),
-                },
-                renderer,
-            ),
             debug_visualizer: sf::DebugVisualizer::new(renderer),
             grid_vis_active: false,
             //
@@ -227,9 +218,9 @@ impl sf::GameState for State {
     fn draw(&mut self, renderer: &mut sf::Renderer, dt: f32) {
         let mut ctx = renderer.draw_to_window();
         ctx.clear(sf::wgpu::Color {
-            r: 0.1,
-            g: 0.1,
-            b: 0.1,
+            r: 0.00802,
+            g: 0.0137,
+            b: 0.02732,
             a: 1.0,
         });
 
@@ -243,8 +234,6 @@ impl sf::GameState for State {
             .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
 
         ctx.submit();
-
-        self.outline_renderer.draw(renderer);
 
         let mut ctx = renderer.draw_to_window();
 

@@ -182,7 +182,7 @@ impl Recipe {
                 let mut coll = collider.spawn(&mut l.coll);
                 let mut mesh = l
                     .mesh
-                    .insert(sf::Mesh::from(*coll.c).with_color([0.05, 0.02, 0.1, 1.0]));
+                    .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.08, 0.4, 1.0]));
                 pose.connect(&mut coll);
                 pose.connect(&mut mesh);
                 if !is_static {
