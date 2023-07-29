@@ -121,7 +121,7 @@ impl PlayerController {
         }
     }
 
-    pub fn respawn(&mut self, renderer: &sf::Renderer, graph: &mut sf::Graph) {
+    pub fn respawn(&mut self, graph: &mut sf::Graph) {
         if let Some(nodes) = &self.body {
             graph.gather(nodes.body).delete();
         }
@@ -157,12 +157,10 @@ impl PlayerController {
             .map(|b| mesh_gltf.get_buffer(&b))
             .collect();
         let mut mesh = l.mesh.insert(
-            sf::Mesh::from_gltf(renderer, &mesh_gltf.document, &mesh_bufs).with_offset(
-                sf::Pose::new(
-                    sf::Vec2::new(-COLL_LENGTH / 2.0 - COLL_R, 0.0),
-                    sf::Angle::Deg(-90.0).into(),
-                ),
-            ),
+            sf::Mesh::from_gltf(&mesh_gltf.document, &mesh_bufs).with_offset(sf::Pose::new(
+                sf::Vec2::new(-COLL_LENGTH / 2.0 - COLL_R, 0.0),
+                sf::Angle::Deg(-90.0).into(),
+            )),
         );
         let mut skin = l.skin.insert(
             sf::gltf_import::load_skin(&mesh_gltf.document, &mesh_bufs)

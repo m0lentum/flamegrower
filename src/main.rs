@@ -190,7 +190,7 @@ impl sf::GameState for State {
 
                 // respawn player
                 if game.input.button(keys.player.respawn.into()) {
-                    self.player.respawn(&game.renderer, &mut self.graph);
+                    self.player.respawn(&mut self.graph);
                 }
 
                 let grav = sf::forcefield::Gravity(sf::Vec2::new(0.0, -9.81));
