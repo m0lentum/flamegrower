@@ -40,14 +40,13 @@ impl Scene {
     pub fn instantiate(
         &self,
         camera: &mut sf::Camera,
-        physics: &mut sf::Physics,
-        graph: &sf::Graph,
+        physics: &mut sf::PhysicsWorld,
+        world: &mut sf::hecs::World,
     ) {
         camera.transform.scale = self.initial_camera_zoom;
 
-        let mut l = graph.get_layer_bundle();
         for recipe in self.recipes.iter() {
-            recipe.spawn(physics, &mut l);
+            recipe.spawn(physics, world);
         }
     }
 }
@@ -99,23 +98,8 @@ pub enum Recipe {
     },
 }
 
-sf::named_layer_bundle! {
-    pub struct SpawnLayers<'a> {
-        pose: w sf::Pose,
-        coll: w sf::Collider,
-        body: w sf::Body,
-        mesh: w sf::Mesh,
-        flammable: w Flammable,
-        spawnpt: w PlayerSpawnPoint,
-    }
-}
-
 impl Recipe {
-    pub fn spawn(
-        &self,
-        _physics: &mut sf::Physics, // will be used as soon as I get making nontrivial levels
-        l: &mut SpawnLayers,
-    ) {
+    pub fn spawn(&self, physics: &mut sf::PhysicsWorld, world: &mut sf::hecs::World) {
         match self {
             //
             // world geometry
@@ -134,94 +118,82 @@ impl Recipe {
                     let len = dist.mag();
                     let angle = f64::atan2(dist.y, dist.x);
 
-                    let mut pose = l
-                        .pose
-                        .insert(sf::Pose::new(mid, sf::Angle::Rad(angle).into()));
-                    let mut coll = l.coll.insert(sf::Collider::new_capsule(len, r));
-                    let mut mesh = l.mesh.insert(sf::Mesh::from(*coll.c).with_color([1.0; 4]));
-                    pose.connect(&mut coll);
-                    pose.connect(&mut mesh);
+                    let pose = sf::Pose::new(mid, sf::Angle::Rad(angle).into());
+                    let coll = sf::Collider::new_capsule(len, r);
+                    let coll_key = physics.entity_set.insert_collider(coll);
+                    let mesh = sf::Mesh::from(coll).with_color([1.0; 4]);
+                    world.spawn((pose, coll_key, mesh));
                 }
             }
             Recipe::StaticCollider { pose, collider } => {
-                let mut pose = l.pose.insert(pose.0);
-                let mut coll = collider.spawn(&mut l.coll);
+                let coll = collider.generate_collider();
+                let coll_key = physics.entity_set.insert_collider(coll);
                 let color = [1.0; 4];
-                let mut mesh = l.mesh.insert(sf::Mesh::from(*coll.c).with_color(color));
-                pose.connect(&mut coll);
-                pose.connect(&mut mesh);
+                let mesh = sf::Mesh::from(coll).with_color(color);
+                world.spawn((pose.0, coll_key, mesh));
             }
             //
             // interactive stuff
             //
             Recipe::PlayerSpawnPoint { pose } => {
-                let mut pose = l.pose.insert(pose.0);
-                let mut marker = l.spawnpt.insert(PlayerSpawnPoint);
-                pose.connect(&mut marker);
+                world.spawn((pose.0, PlayerSpawnPoint));
             }
             Recipe::PhysicsObject { pose, collider } => {
-                let mut pose = l.pose.insert(pose.0);
-                let mut coll = collider.spawn(&mut l.coll);
-                let mut body = l
-                    .body
-                    .insert(sf::Body::new_dynamic(coll.c.info(), DEFAULT_BODY_DENSITY));
-                let mut mesh = l
-                    .mesh
-                    .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.6, 0.9, 1.0]));
-                pose.connect(&mut coll);
-                pose.connect(&mut mesh);
-                pose.connect(&mut body);
-                body.connect(&mut coll);
+                let coll = collider.generate_collider();
+                let body = sf::Body::new_dynamic(coll.info(), DEFAULT_BODY_DENSITY);
+                let body_key = physics.entity_set.insert_body(body);
+                let coll_key = physics.entity_set.attach_collider(body_key, coll);
+                let mesh = sf::Mesh::from(coll).with_color([0.2, 0.6, 0.9, 1.0]);
+                world.spawn((pose.0, body_key, coll_key, mesh));
             }
             Recipe::Weed {
                 pose,
                 collider,
                 is_static,
             } => {
-                let mut pose = l.pose.insert(pose.0);
-                let mut coll = collider.spawn(&mut l.coll);
-                let mut mesh = l
-                    .mesh
-                    .insert(sf::Mesh::from(*coll.c).with_color([0.2, 0.08, 0.4, 1.0]));
-                pose.connect(&mut coll);
-                pose.connect(&mut mesh);
-                if !is_static {
-                    let mut body = l
-                        .body
-                        .insert(sf::Body::new_dynamic(coll.c.info(), DEFAULT_BODY_DENSITY));
-                    body.connect(&mut coll);
-                    pose.connect(&mut body);
-                }
-                let mut flammable = l.flammable.insert(Flammable::new(FlammableParams {
+                let coll = collider.generate_collider();
+                let coll_key = physics.entity_set.insert_collider(coll);
+                let mesh = sf::Mesh::from(coll).with_color([0.2, 0.08, 0.4, 1.0]);
+                let flammable = Flammable::new(FlammableParams {
                     time_to_destroy: Some(0.5),
                     ..Default::default()
-                }));
-                flammable.connect(&mut coll);
+                });
+
+                let entity = world.spawn((pose.0, coll_key, mesh, flammable));
+
+                if !is_static {
+                    let body = sf::Body::new_dynamic(coll.info(), DEFAULT_BODY_DENSITY);
+                    let body_key = physics.entity_set.insert_body(body);
+                    physics
+                        .entity_set
+                        .attach_existing_collider(body_key, coll_key);
+                    world.insert_one(entity, body_key).ok();
+                }
             }
             Recipe::Flamevine {
                 pose,
                 collider,
                 is_static,
             } => {
-                let mut pose = l.pose.insert(pose.0);
-                let mut coll = collider.spawn(&mut l.coll);
-                let mut mesh = l
-                    .mesh
-                    .insert(sf::Mesh::from(*coll.c).with_color([0.9, 0.3, 0.0, 1.0]));
-                pose.connect(&mut coll);
-                pose.connect(&mut mesh);
-                if !is_static {
-                    let mut body = l.body.insert(sf::Body::new_dynamic(coll.c.info(), 1.0));
-                    body.connect(&mut coll);
-                    pose.connect(&mut body);
-                }
+                let coll = collider.generate_collider();
+                let coll_key = physics.entity_set.insert_collider(coll);
+                let mesh = sf::Mesh::from(coll).with_color([0.9, 0.3, 0.0, 1.0]);
                 let eternal_fire = Flammable::new(FlammableParams {
                     time_to_destroy: None,
                     ..Default::default()
                 })
                 .ignited();
-                let mut flammable = l.flammable.insert(eternal_fire);
-                flammable.connect(&mut coll);
+
+                let entity = world.spawn((pose.0, coll_key, mesh, eternal_fire));
+
+                if !is_static {
+                    let body = sf::Body::new_dynamic(coll.info(), 1.0);
+                    let body_key = physics.entity_set.insert_body(body);
+                    physics
+                        .entity_set
+                        .attach_existing_collider(body_key, coll_key);
+                    world.insert_one(entity, body_key).ok();
+                }
             }
         }
     }
@@ -289,7 +261,7 @@ impl Default for TiledColliderShape {
 }
 
 impl TiledColliderShape {
-    pub fn realise(&self, width: f64, height: f64) -> sf::Collider {
+    pub fn generate_collider(&self, width: f64, height: f64) -> sf::Collider {
         match self {
             Self::Circle => sf::Collider::new_circle(width / 2.0),
             Self::Rect => sf::Collider::new_rect(width, height),
@@ -301,18 +273,15 @@ impl TiledColliderShape {
 }
 
 impl TiledCollider {
-    pub fn spawn<'r, 'v: 'r>(
-        &self,
-        l_collider: &'r mut sf::LayerViewMut<'v, sf::Collider>,
-    ) -> sf::NodeRefMut<'r, sf::Collider> {
+    pub fn generate_collider(&self) -> sf::Collider {
         let mut coll = self
             .shape
-            .realise(self.width, self.height)
+            .generate_collider(self.width, self.height)
             .with_material(DEFAULT_PHYSICS_MATERIAL);
         if self.corner_radius > 0.0 {
             coll.shape = coll.shape.rounded_inward(self.corner_radius);
         }
-        l_collider.insert(coll)
+        coll
     }
 }
 

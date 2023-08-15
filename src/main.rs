@@ -13,22 +13,6 @@ use settings::Settings;
 // Constants & init
 //
 
-fn world_graph() -> sf::Graph {
-    sf::new_graph! {
-        // starframe types
-        sf::Pose,
-        sf::Body,
-        sf::Collider,
-        sf::Rope,
-        sf::Mesh,
-        sf::Skin,
-        sf::MeshAnimator,
-        // our types
-        fire::Flammable,
-        player::PlayerSpawnPoint,
-    }
-}
-
 mod collision_layers {
     use sf::physics::collision::ROPE_LAYER;
     use starframe as sf;
@@ -78,8 +62,9 @@ enum StateEnum {
 }
 pub struct State {
     // systems
-    graph: sf::Graph,
-    physics: sf::Physics,
+    world: sf::hecs::World,
+    physics: sf::PhysicsWorld,
+    hecs_sync: sf::HecsSyncManager,
     camera: sf::Camera,
     camera_ctl: sf::MouseDragCameraController,
     mesh_renderer: sf::MeshRenderer,
@@ -98,13 +83,14 @@ impl State {
             .expect("test scene failed to load");
 
         State {
-            graph: world_graph(),
-            physics: sf::Physics::new(
+            world: sf::hecs::World::new(),
+            physics: sf::PhysicsWorld::new(
                 sf::physics::TuningConstants {
                     ..Default::default()
                 },
                 collision_layers::create_layer_matrix(),
             ),
+            hecs_sync: sf::HecsSyncManager::new_autosync(sf::HecsSyncOptions::both_ways()),
             camera: sf::Camera::new(sf::CameraScalingStrategy::ConstantDisplayArea {
                 width: 30.0,
                 height: 15.0,
@@ -126,15 +112,15 @@ impl State {
     }
 
     fn reset(&mut self) {
-        self.physics.reset();
-        self.graph.reset();
+        self.physics.clear();
+        self.world.clear();
         self.camera.transform = sf::Transform::identity();
     }
 
     fn instantiate_scene(&mut self) {
         self.scene
             .read()
-            .instantiate(&mut self.camera, &mut self.physics, &self.graph);
+            .instantiate(&mut self.camera, &mut self.physics, &mut self.world);
     }
 }
 
@@ -181,26 +167,33 @@ impl sf::GameState for State {
 
                 // respawn player
                 if game.input.button(keys.player.respawn.into()) {
-                    self.player.respawn(&mut self.graph);
+                    self.player.respawn(&mut self.physics, &mut self.world);
                 }
 
+                self.hecs_sync
+                    .sync_hecs_to_physics(&mut self.physics, &mut self.world);
+
                 let grav = sf::forcefield::Gravity(sf::Vec2::new(0.0, -9.81));
-                self.physics.tick(
-                    game.dt_fixed,
-                    self.player.time_scale(),
-                    &grav,
-                    self.graph.get_layer_bundle(),
-                );
+                self.physics
+                    .tick(game.dt_fixed, self.player.time_scale(), &grav);
 
                 self.player.tick(
                     &game.input,
                     &mut self.camera,
                     &keys.player,
                     &mut self.physics,
-                    &mut self.graph,
+                    &mut self.world,
                 );
 
-                fire::tick(game.dt_fixed, &mut self.physics, &mut self.graph);
+                self.hecs_sync
+                    .sync_physics_to_hecs(&self.physics, &mut self.world);
+
+                fire::tick(
+                    game.dt_fixed,
+                    &mut self.physics,
+                    &mut self.world,
+                    &mut self.hecs_sync,
+                );
 
                 Some(())
             }
@@ -226,12 +219,12 @@ impl sf::GameState for State {
 
         sf::animator::step_time(
             dt * self.player.time_scale().unwrap_or(1.0) as f32,
-            self.graph.get_layer_bundle(),
+            &mut self.world,
         );
-        sf::animator::update_joints(self.graph.get_layer_bundle());
+        sf::animator::update_joints(&mut self.world);
 
         self.mesh_renderer
-            .draw(&self.camera, &mut ctx, self.graph.get_layer_bundle());
+            .draw(&self.camera, &mut ctx, &mut self.world);
 
         ctx.submit();
 

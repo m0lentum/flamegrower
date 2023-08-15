@@ -82,20 +82,19 @@ impl Default for FlammableParams {
 // tick
 //
 
-pub fn tick(dt: f64, physics: &mut sf::Physics, graph: &mut sf::Graph) {
-    let mut l_flammable = graph.get_layer_mut::<Flammable>();
-    let l_collider = graph.get_layer::<sf::Collider>();
-    let l_pose = graph.get_layer::<sf::Pose>();
-    let mut l_body = graph.get_layer_mut::<sf::Body>();
-    let mut l_rope = graph.get_layer_mut::<sf::Rope>();
-
+pub fn tick(
+    dt: f64,
+    physics: &mut sf::PhysicsWorld,
+    world: &mut sf::hecs::World,
+    hecs_sync: &mut sf::HecsSyncManager,
+) {
     // reset cooling down state
 
-    for flammable in l_flammable.iter_mut() {
+    for (_, flammable) in world.query_mut::<&mut Flammable>() {
         if let FlammableState::NotOnFire {
             ref mut cooling_down,
             ..
-        } = flammable.c.state
+        } = flammable.state
         {
             *cooling_down = true;
         }
@@ -103,44 +102,34 @@ pub fn tick(dt: f64, physics: &mut sf::Physics, graph: &mut sf::Graph) {
 
     // heat up adjacent flammables
 
-    // defer mutation to dodge lifetime shenanigans
-    let mut delta_temps: Vec<(sf::NodeKey<Flammable>, f64)> = Vec::new();
-    let l_flammable_immut = l_flammable.subview();
-    for flammable in l_flammable_immut
-        .iter()
-        .filter(|f| matches!(f.c.state, FlammableState::OnFire { .. }))
+    // defer mutation to avoid nested mutable hecs queries
+    let mut delta_temps: Vec<(sf::hecs::Entity, f64)> = Vec::new();
+    for (_, (flammable, &coll_key, pose)) in
+        world.query_mut::<(&Flammable, &sf::ColliderKey, &sf::Pose)>()
     {
-        let coll = match flammable.get_neighbor(&l_collider) {
-            Some(coll) => coll,
-            None => continue,
-        };
-        let pose = match coll.get_neighbor(&l_pose) {
-            Some(pose) => pose,
-            None => continue,
-        };
-        for other_coll in physics.query_shape(
-            *pose.c,
-            coll.c.shape.expanded(FIRE_SPREAD_RANGE),
+        let FlammableState::OnFire { .. } = flammable.state else { continue };
+        let Some(coll) = physics.entity_set.get_collider(coll_key) else { continue };
+
+        for (other_coll_key, _) in physics.query_shape(
+            *pose,
+            coll.shape.expanded(FIRE_SPREAD_RANGE),
             Default::default(),
-            &(l_pose.subview(), l_collider.subview()),
         ) {
-            if other_coll.key() == coll.key() {
+            if other_coll_key == coll_key {
                 continue;
             }
-            let other_flammable = match other_coll.get_neighbor(&l_flammable_immut) {
-                Some(f) => f,
-                None => continue,
-            };
-            delta_temps.push((other_flammable.key(), flammable.c.params.burning_heat * dt));
+            let Some(other_entity) = hecs_sync.get_collider_entity(other_coll_key) else { continue };
+            // not checking if the other entity has a Flammable component here,
+            // we'll need to query for it in the next loop anyway so we can do the check there
+            delta_temps.push((other_entity, flammable.params.burning_heat * dt));
         }
     }
-    drop(l_flammable_immut);
-    for (key, delta_temp) in delta_temps {
-        let flammable = l_flammable.get_mut_unchecked(key);
+    for (entity, delta_temp) in delta_temps {
+        let Ok(flammable) = world.query_one_mut::<&mut Flammable>(entity) else { continue };
         if let FlammableState::NotOnFire {
             temperature,
             cooling_down,
-        } = &mut flammable.c.state
+        } = &mut flammable.state
         {
             *temperature += delta_temp;
             *cooling_down = false;
@@ -151,44 +140,29 @@ pub fn tick(dt: f64, physics: &mut sf::Physics, graph: &mut sf::Graph) {
     // ignite ones that heated up enough,
     // destroy ones that burned for long enough
 
-    let mut to_destroy: Vec<sf::NodeKey<Flammable>> = Vec::new();
-    for flammable in l_flammable.iter_mut() {
-        match flammable.c.state {
-            FlammableState::OnFire {
-                ref mut time_burning,
-            } => {
+    let mut to_destroy: Vec<sf::hecs::Entity> = Vec::new();
+    for (entity, flammable) in world.query_mut::<&mut Flammable>() {
+        match &mut flammable.state {
+            FlammableState::OnFire { time_burning } => {
                 *time_burning += dt;
-                if *time_burning >= flammable.c.params.time_to_destroy.unwrap_or(f64::INFINITY) {
-                    to_destroy.push(flammable.key());
-                    // if this is a rope particle, disconnect it from the rope
-                    // so the whole thing doesn't get deleted at once
-                    let body = match flammable.get_neighbor_mut(&mut l_body) {
-                        Some(b) => b,
-                        None => continue,
-                    };
-                    let _rope = match body.get_neighbor_mut(&mut l_rope) {
-                        Some(r) => r,
-                        None => continue,
-                    };
-                    sf::rope::cut_after(body.key(), (l_body.subview_mut(), l_rope.subview_mut()));
+                if *time_burning >= flammable.params.time_to_destroy.unwrap_or(f64::INFINITY) {
+                    to_destroy.push(entity);
                 }
             }
             FlammableState::NotOnFire {
-                ref mut temperature,
+                temperature,
                 cooling_down,
             } => {
-                if cooling_down {
-                    *temperature = (*temperature - flammable.c.params.cooldown_rate * dt).max(0.0);
-                } else if *temperature >= flammable.c.params.temp_to_catch_fire {
-                    flammable.c.ignite();
+                if *cooling_down {
+                    *temperature = (*temperature - flammable.params.cooldown_rate * dt).max(0.0);
+                } else if *temperature >= flammable.params.temp_to_catch_fire {
+                    flammable.ignite();
                 }
             }
         }
     }
 
-    drop((l_flammable, l_collider, l_pose, l_body, l_rope));
-
-    for flammable in to_destroy {
-        graph.gather(flammable).stop_at_layer::<sf::Rope>().delete();
+    for entity in to_destroy {
+        world.despawn(entity).ok();
     }
 }

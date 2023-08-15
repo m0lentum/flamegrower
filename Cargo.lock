@@ -51,6 +51,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
+dependencies = [
+ "cfg-if",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "android-activity"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -119,7 +130,7 @@ version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c53a8477ada5edbd6ba3b0698aabaa76b352454aedc8c8dca0c6328fc8313b7e"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "base64 0.13.0",
  "crossbeam-channel",
  "gltf",
@@ -710,7 +721,7 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
 ]
 
 [[package]]
@@ -718,6 +729,15 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+dependencies = [
+ "ahash 0.8.3",
+]
 
 [[package]]
 name = "hassle-rs"
@@ -732,6 +752,16 @@ dependencies = [
  "thiserror",
  "widestring",
  "winapi",
+]
+
+[[package]]
+name = "hecs"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d2711ad60b74f2f3d0c0ac338a58410a5249da44005971ae806d2925e6b5167"
+dependencies = [
+ "hashbrown 0.13.2",
+ "spin",
 ]
 
 [[package]]
@@ -1331,9 +1361,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.13.0"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
+checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "orbclient"
@@ -1695,6 +1725,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+
+[[package]]
 name = "spirv"
 version = "0.2.0+1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1712,13 +1748,14 @@ dependencies = [
  "console_log",
  "futures",
  "gltf",
+ "hecs",
  "instant",
  "itertools",
  "js-sys",
  "log",
  "parking_lot 0.11.2",
  "serde",
- "slotmap",
+ "thunderdome",
  "tracy-client",
  "ultraviolet",
  "wasm-bindgen",
@@ -1812,6 +1849,12 @@ checksum = "5516c27b78311c50bf42c071425c560ac799b11c30b31f87e3081965fe5e0180"
 dependencies = [
  "once_cell",
 ]
+
+[[package]]
+name = "thunderdome"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e170f93360bf9ae6fe3c31116bbf27adb1d054cedd6bc3d7857e34f2d98d0b"
 
 [[package]]
 name = "tiny-skia"
